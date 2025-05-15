@@ -99,7 +99,7 @@ json_chart() {
 
 	jq -n --argjson chart "[]" \
 		"$(jq -n \
-			--arg namespace $updatable \
+			--arg namespace $namespace \
 			--arg name $installed_name \
 			--arg short $remote_image_shortened \
 			--arg image $remote_image \
@@ -136,11 +136,13 @@ json_chart() {
 }
 
 namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
-
 for namespace in $namespaces; do
+	echo "Jumping to namespace $namespace"
+
 	deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
 	# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 	for deployment in $deployments; do
+		echo "Checking deployment $deployment"
 
 		installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
 		installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
