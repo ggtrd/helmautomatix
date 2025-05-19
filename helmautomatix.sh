@@ -61,6 +61,22 @@ jq -n --argjson charts "[]" '$ARGS.named' >$file_updates_now_json
 # Refresh Helm repo before doing anything
 # helm repo update
 
+
+
+
+# Stop script if missing dependency
+required_commands="jq helm kubectl"
+for command in $required_commands; do
+	if [ -z "$(which $command)" ]; then
+		echo "$0: error: '$command' not found but required to run $0"
+		exit
+	fi
+done
+
+
+
+
+
 json_chart() {
 
 	local namespace=$1
@@ -181,7 +197,7 @@ done
 cat $file_updates_now_json
 
 # todo:
-# - ensure installed: jq, helm, kubectl?
+# - ensure installed: jq, helm, kubectl
 # - mail notification for errors
 
 rm *.tmp
