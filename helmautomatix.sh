@@ -63,20 +63,42 @@ jq -n --argjson charts "[]" '$ARGS.named' >$file_updates_now_json
 
 
 
+# Log general message
+# Usage: log <message>
+log() {
+	echo "$now $0: $1"
+}
+
+
+# Log error message
+# Usage: log_error <message>
+log_error() {
+	log "error: $1"
+}
+
+
+
+# Log error message
+# Usage: log_error <message>
+log_info() {
+	log " info: $1"
+}
+
+
 
 # Stop script if missing dependency
 required_commands="jq helm kubectl"
 for command in $required_commands; do
 	if [ -z "$(which $command)" ]; then
-		echo "$0: error: '$command' not found but required to run $0"
+		log_error "'$command' not found but required."
 		exit
 	fi
 done
 
 
 
-
-
+# Create a JSON array containing instaleld Helm Charts informations
+# Usage: json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true/false"
 json_chart() {
 
 	local namespace=$1
@@ -125,8 +147,6 @@ json_chart() {
 			'$ARGS.named')" \
 		'$ARGS.named' >$file_tmp_item
 
-
-
 	# Create this JSON structure:
 	# 	{
 	#   "charts": [
@@ -151,14 +171,17 @@ json_chart() {
 	cat $file_tmp_list >$file_updates_now_json
 }
 
+
+
 namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
 for namespace in $namespaces; do
-	echo "Jumping to namespace $namespace"
+	log_info "jumping to namespace $namespace"
 
 	deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
 	# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 	for deployment in $deployments; do
-		echo "Checking deployment $deployment"
+
+		log_info "checking deployment $deployment"
 
 		installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
 		installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
@@ -172,6 +195,13 @@ for namespace in $namespaces; do
 
 		# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
 		configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
+
+		if [ -z $configured_repo_name ]; then
+			log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
+			log_error "helm --namespace $namespace get metadata $installed_name"
+			log_error "helm repo list"
+			break
+		fi
 
 		remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
 		remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
@@ -200,6 +230,6 @@ cat $file_updates_now_json
 # - ensure installed: jq, helm, kubectl
 # - mail notification for errors
 
-rm *.tmp
+# rm *.tmp
 
 exit
