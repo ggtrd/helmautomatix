@@ -30,8 +30,15 @@
 
 
 
+# Get now datetime
+# Usage: now
+now() {
+	date +%y-%m-%d_%H-%M-%S
+}
+
+
+now="$(now)"
 name="$(echo $0 | sed 's|./||' | sed 's|.sh||')"
-now="$(date +%y-%m-%d_%H-%M-%S)"
 
 dir_updates="updates"
 dir_updates_now="$dir_updates/updates_$now"
@@ -67,11 +74,10 @@ jq -n --argjson charts "[]" '$ARGS.named' >$file_updates_now_json
 # helm repo update
 
 
-
 # Log general message
 # Usage: log <message>
 log() {
-	echo "$now $0: $1"
+	echo "$(now) $0: $1"
 }
 
 
@@ -198,17 +204,17 @@ json_chart() {
 list_updates() {
 	local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
 	for namespace in $namespaces; do
-		log_info "jumping to namespace $namespace"
+		log_info "jumping to namespace '$namespace'"
 
 		local deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
 		# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 
 		if [ -z $deployments ]; then
-			log_info "nothing deployed on $namespace"
+			log_info "$namespace: nothing deployed here"
 		else 
 			for deployment in $deployments; do
 
-				log_info "checking deployment $deployment"
+				log_info "checking deployment '$deployment'"
 
 				local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
 				local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
@@ -225,8 +231,8 @@ list_updates() {
 
 				if [ -z $configured_repo_name ]; then
 					log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
-					log_error "helm --namespace $namespace get metadata $installed_name"
-					log_error "helm repo list"
+					log_info "  get the helm chart repository: helm --namespace $namespace get metadata $installed_name"
+					log_info "ensure the repository is listed: helm repo list"
 					break
 				fi
 
