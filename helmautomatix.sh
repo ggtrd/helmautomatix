@@ -30,11 +30,16 @@
 
 
 
+name="$(echo $0 | sed 's|./||' | sed 's|.sh||')"
 now="$(date +%y-%m-%d_%H-%M-%S)"
 
 dir_updates="updates"
 dir_updates_now="$dir_updates/updates_$now"
 mkdir -p $dir_updates_now
+
+dir_tmp="/tmp/$name"
+mkdir -p $dir_tmp
+chmod -R 770 $dir_tmp
 
 file_updates_now_json="$dir_updates_now/updates_$now.json"
 # jq -cn '{charts: $ARGS.named}' > $file_updates_now_json
@@ -86,14 +91,30 @@ log_info() {
 
 
 
+
+# Delete /tmp/$0 directory created at begin
+# Usage: delete_tmp
+delete_tmp() {
+	rm -rf $dir_tmp
+}
+
+
+
 # Stop script if missing dependency
 required_commands="jq helm kubectl"
+file_tmp_required_commands="$dir_tmp/required_commands"
 for command in $required_commands; do
 	if [ -z "$(which $command)" ]; then
 		log_error "'$command' not found but required."
-		exit
+		echo $command >> $file_tmp_required_commands
+		# exit
 	fi
 done
+if [ -s $file_tmp_required_commands ]; then
+	log_error "missing required command(s), exiting."
+	delete_tmp
+	exit
+fi
 
 
 
@@ -228,10 +249,6 @@ list_updates() {
 }
 
 
-# todo:
-# - mail notification for errors
-
-
 
 
 
@@ -241,12 +258,24 @@ case "$1" in
 	-h|--help|help)			echo "Usage: $0 [OPTION]..." \
 								&&		echo "" \
 								&&		echo "Options:" \
-								&&		echo " -l, --list-updates			list available updates for helm charts." \
-								&&		echo "" \
+								&&		echo " -l, --list-updates        list available Helm Charts updates." \
 								&&		exit ;;
 	*)
-							log_error "unknown option '$1', $0 --help"
+							if [ -z "$1" ]; then
+								list_updates
+							else
+								log_error "unknown option '$1', $0 --help"
+							fi
 esac
 
+
+
+
+
+# todo:
+# - mail notification for errors
+
+
+# rm -rf $dir_tmp
 
 exit
