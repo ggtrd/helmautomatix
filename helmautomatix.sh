@@ -202,49 +202,55 @@ list_updates() {
 
 		local deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
 		# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
-		for deployment in $deployments; do
 
-			log_info "checking deployment $deployment"
+		if [ -z $deployments ]; then
+			log_info "nothing deployed on $namespace"
+		else 
+			for deployment in $deployments; do
 
-			local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
-			local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
-			local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
+				log_info "checking deployment $deployment"
 
-			local remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
+				local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
+				local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
+				local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
 
-			# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
-			# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
-			local configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
+				local remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
 
-			# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
-			local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
+				# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
+				# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
+				local configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
 
-			if [ -z $configured_repo_name ]; then
-				log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
-				log_error "helm --namespace $namespace get metadata $installed_name"
-				log_error "helm repo list"
-				break
-			fi
+				# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
+				local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
 
-			local remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
-			local remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
+				if [ -z $configured_repo_name ]; then
+					log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
+					log_error "helm --namespace $namespace get metadata $installed_name"
+					log_error "helm repo list"
+					break
+				fi
 
-			# # Debug comment/uncomment
-			# echo "installed_name         $installed_name"
-			# echo "installed_version      $installed_version"
-			# echo "installed_status       $installed_status"
-			# echo "remote_image           $remote_image"
-			# echo "configured_repo_url    $configured_repo_url"
-			# echo "configured_repo_name   $configured_repo_name"
-			# echo "remote_image_shortened $remote_image_shortened"
-			# echo "remote_version         $remote_version"
+				local remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
+				local remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
 
-			if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-				json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
-			else
-				json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "up-to-date"
-			fi
-		done
+				# # Debug comment/uncomment
+				# echo "installed_name         $installed_name"
+				# echo "installed_version      $installed_version"
+				# echo "installed_status       $installed_status"
+				# echo "remote_image           $remote_image"
+				# echo "configured_repo_url    $configured_repo_url"
+				# echo "configured_repo_name   $configured_repo_name"
+				# echo "remote_image_shortened $remote_image_shortened"
+				# echo "remote_version         $remote_version"
+
+				if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
+					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
+				else
+					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "up-to-date"
+				fi
+			done
+
+		fi
 	done
 
 	cat $file_updates_now_json
