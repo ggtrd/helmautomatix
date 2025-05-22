@@ -172,64 +172,81 @@ json_chart() {
 }
 
 
+list_updates() {
+	namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
+	for namespace in $namespaces; do
+		log_info "jumping to namespace $namespace"
 
-namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
-for namespace in $namespaces; do
-	log_info "jumping to namespace $namespace"
+		deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
+		# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
+		for deployment in $deployments; do
 
-	deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
-	# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
-	for deployment in $deployments; do
+			log_info "checking deployment $deployment"
 
-		log_info "checking deployment $deployment"
+			installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
+			installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
+			installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
 
-		installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
-		installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
-		installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
+			remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
 
-		remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
+			# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
+			# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
+			configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
 
-		# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
-		# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
-		configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
+			# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
+			configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
 
-		# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
-		configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
+			if [ -z $configured_repo_name ]; then
+				log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
+				log_error "helm --namespace $namespace get metadata $installed_name"
+				log_error "helm repo list"
+				break
+			fi
 
-		if [ -z $configured_repo_name ]; then
-			log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
-			log_error "helm --namespace $namespace get metadata $installed_name"
-			log_error "helm repo list"
-			break
-		fi
+			remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
+			remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
 
-		remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
-		remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
+			# # Debug comment/uncomment
+			# echo "installed_name         $installed_name"
+			# echo "installed_version      $installed_version"
+			# echo "installed_status       $installed_status"
+			# echo "remote_image           $remote_image"
+			# echo "configured_repo_url    $configured_repo_url"
+			# echo "configured_repo_name   $configured_repo_name"
+			# echo "remote_image_shortened $remote_image_shortened"
+			# echo "remote_version         $remote_version"
 
-		# # Debug comment/uncomment
-		# echo "installed_name         $installed_name"
-		# echo "installed_version      $installed_version"
-		# echo "installed_status       $installed_status"
-		# echo "remote_image           $remote_image"
-		# echo "configured_repo_url    $configured_repo_url"
-		# echo "configured_repo_name   $configured_repo_name"
-		# echo "remote_image_shortened $remote_image_shortened"
-		# echo "remote_version         $remote_version"
-
-		if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-			json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
-		else
-			json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "up-to-date"
-		fi
+			if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
+				json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
+			else
+				json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "up-to-date"
+			fi
+		done
 	done
-done
 
-cat $file_updates_now_json
+	cat $file_updates_now_json
+}
+
 
 # todo:
-# - ensure installed: jq, helm, kubectl
 # - mail notification for errors
 
-# rm *.tmp
+
+
+
+
+# The options (except --help) must be called with root
+case "$1" in
+	-l|--list-updates)		list_updates ;;
+	-h|--help|help)			echo "Usage: $0 [OPTION]..." \
+								&&		echo "" \
+								&&		echo "Options:" \
+								&&		echo " -l, --list-updates			list available updates for helm charts." \
+								&&		echo "" \
+								&&		exit ;;
+	*)
+							log_error "unknown option '$1', $0 --help"
+esac
+
 
 exit
