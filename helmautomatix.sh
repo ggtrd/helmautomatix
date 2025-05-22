@@ -267,9 +267,20 @@ list_updates() {
 # Usage: update_charts
 update_charts() {
 
-	list_updates
+	list_updates > /dev/null
 	updatable_charts="$(cat $file_updates_now_json | jq -c '.charts[] | select(.updatable == "true").name')"
 	
+}
+
+
+# Help message
+# Usage: display_help
+display_help() {
+	echo "Usage: $0 [OPTION]..." \
+	&&	echo "" \
+	&&	echo "Options:" \
+	&&	echo " -l, --list-updates        list available Helm Charts updates." \
+	&&	echo " -u, --do-update           update Helm Charts." 
 }
 
 
@@ -280,15 +291,10 @@ update_charts() {
 case "$1" in
 	-l|--list-updates)		list_updates ;;
 	-u|--do-update)			update_charts ;;
-	-h|--help|help)			echo "Usage: $0 [OPTION]..." \
-								&&		echo "" \
-								&&		echo "Options:" \
-								&&		echo " -l, --list-updates        list available Helm Charts updates." \
-								&&		echo " -u, --do-update           update Helm Charts." \
-								&&		exit ;;
+	-h|--help|help)			display_help ;;
 	*)
 							if [ -z "$1" ]; then
-								list_updates
+								display_help
 							else
 								log_error "unknown option '$1', $0 --help"
 							fi
