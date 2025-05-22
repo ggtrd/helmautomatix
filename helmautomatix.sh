@@ -209,8 +209,8 @@ list_updates() {
 		local deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
 		# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 
-		if [ -z $deployments ]; then
-			log_info "$namespace: nothing deployed here"
+		if [ -z "$deployments" ]; then
+			log_info "no chart found on '$namespace'"
 		else 
 			for deployment in $deployments; do
 
@@ -231,7 +231,7 @@ list_updates() {
 
 				if [ -z $configured_repo_name ]; then
 					log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
-					log_info "  get the helm chart repository: helm --namespace $namespace get metadata $installed_name"
+					log_info "look for the chart repository:   helm --namespace $namespace get metadata $installed_name"
 					log_info "ensure the repository is listed: helm repo list"
 					break
 				fi
