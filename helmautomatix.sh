@@ -263,16 +263,28 @@ list_updates() {
 }
 
 
+# Update all Helm Charts
+# Usage: update_charts
+update_charts() {
+
+	list_updates
+	updatable_charts="$(cat $file_updates_now_json | jq -c '.charts[] | select(.updatable == "true").name')"
+	
+}
+
+
 
 
 
 # The options (except --help) must be called with root
 case "$1" in
 	-l|--list-updates)		list_updates ;;
+	-u|--do-update)			update_charts ;;
 	-h|--help|help)			echo "Usage: $0 [OPTION]..." \
 								&&		echo "" \
 								&&		echo "Options:" \
 								&&		echo " -l, --list-updates        list available Helm Charts updates." \
+								&&		echo " -u, --do-update           update Helm Charts." \
 								&&		exit ;;
 	*)
 							if [ -z "$1" ]; then
