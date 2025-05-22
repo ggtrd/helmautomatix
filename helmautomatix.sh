@@ -193,6 +193,8 @@ json_chart() {
 }
 
 
+# List Helm Charts available updates
+# Usage: list_updates
 list_updates() {
 	namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
 	for namespace in $namespaces; do
