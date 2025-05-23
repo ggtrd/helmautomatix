@@ -277,26 +277,54 @@ update_charts() {
 
 		# Deployed (=on cluster)
 		local file_tmp_chart_pairs_deployed="$dir_updates_now/pairs_deployed_$chart_name.yml"
-		helm get values $chart_name -o json > $file_tmp_chart_pairs_deployed                     # Get the YAML keys/values of the current deployed chart and store it as JSON
-		if [ ! -z "$(cat $file_tmp_chart_pairs_deployed)" ]; then                                         # Ensure the tmp file containing values exists, if not it means no values are specified
-			local pairs_deployed="$(cat $file_tmp_chart_pairs_deployed | yq)"                    # Get keys/values pairs of the chart
-			local keys_deployed="$(echo $pairs_deployed | jq -r '. | keys[]')"                   # Get the keys names only to be able to compare them with the new remote chart version
+		helm get values $chart_name -o json > $file_tmp_chart_pairs_deployed                               # Get the YAML keys/values of the current deployed chart and store it as JSON
+		if [ -f $file_tmp_chart_pairs_deployed ]; then     # Ensure the tmp file containing values exists, if not it means no values are specified
+			local pairs_deployed="$(cat $file_tmp_chart_pairs_deployed | yq)"                              # Get keys/values pairs of the chart
+			# local keys_deployed="$(echo $pairs_deployed | jq -r '. | keys[]')"                             # Get the keys names only to be able to compare them with the new remote chart version
+			local keys_deployed="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"                             # Get the keys names only to be able to compare them with the new remote chart version
+
+			
+
 		fi
-		echo $pairs_deployed
 
 		# Remote (=repository)
 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
-		helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                        # Get the new available values of the Chart to be able to ensure that the current values are still compatibles
-		local keys_remote="$(echo $pairs_remote | jq -r '. | keys[]')"                           # Get the keys names only to be able to compare them with the new remote chart version
+		helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                  # Get the new available values of the Chart to be able to ensure that the current values are still compatibles
+		if [ -f $file_tmp_chart_pairs_remote ]; then         # Ensure the tmp file containing values exists, if not it means no values are specified
+			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                  # Get keys/values pairs of the chart
+			# local keys_remote="$(echo $pairs_remote | jq -r '. | keys[]')"                                 # Get the keys names only to be able to compare them with the new deployed chart version
+			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"                             # Get the keys names only to be able to compare them with the new remote chart version
+		fi
 
-		# Ensure the key list is not empty
-		if [ ! -z "$(echo $keys)" ]; then
-			for key in $keys; do
+		
+		# echo -n "chart             " $chart_name
+		# # echo -n "pairs_deployed    " $pairs_deployed
+		# echo -n "keys_deployed     " $keys_deployed
+		# # echo -n "pairs_remote      " $pairs_remote
+		# echo -n "keys_remote       " $keys_remote
 
-				# Here use yq and not jq since the remotes pairs are in YAML and not JSON
-				local values="$(cat $file_tmp_chart_pairs_remote | yq ".$key")"
+		if [ ! -z "$(echo $keys_remote)" ] && [ ! -z "$(echo $keys_deployed)" ]; then
+			for key_remote in $keys_remote; do
+				for key_deployed in $keys_deployed; do
+					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ]; then
+						echo $key_remote
+						echo $key_deployed
+
+						# cat $file_tmp_chart_pairs_remote | grep $key_remote
+					fi
+				done
 			done
 		fi
+
+
+		# # Ensure the key list is not empty
+		# if [ ! -z "$(echo $keys)" ]; then
+		# 	for key in $keys; do
+
+		# 		# Here use yq and not jq since the remotes pairs are in YAML and not JSON
+		# 		local values="$(cat $file_tmp_chart_pairs_remote | yq ".$key")"
+		# 	done
+		# fi
 
 
 		# Ensure the current configured pairs are still compatible with the new chart version, or give up the update
