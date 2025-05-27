@@ -142,19 +142,28 @@ fi
 # Usage: ratelimit_registry
 ratelimit_registry() {
 
-	local token="$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
-	local response="$(curl --head -H "Authorization: Bearer $token" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest)"
 
-	local ratelimit_limit="$(echo $response | grep 'ratelimit-limit')"
-	local ratelimit_remaining="$(echo $response | grep 'ratelimit-remaining')"
-	local docker_ratelimit_source="$(echo $response | grep 'docker-ratelimit-source')"
+	# mkdir $dir_tmp
 
-	echo "token                     $token"
-	echo "response                  $response"
-	echo "ratelimit_limit           $ratelimit_limit"
-	echo "ratelimit_remaining       $ratelimit_remaining"
-	echo "docker_ratelimit_source   $docker_ratelimit_source"
+	local token="$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
 
+	local file_response_tmp="$dir_tmp/ratelimit"
+	curl -s --head -H "Authorization: Bearer $token" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest -o $file_response_tmp
+
+	local ratelimit_limit="$(cat $file_response_tmp | grep 'ratelimit-limit' | sed 's|.*: ||' | sed 's|;.*||')"
+	local ratelimit_remaining="$(cat $file_response_tmp | grep 'ratelimit-remaining' | sed 's|.*: ||' | sed 's|;.*||')"
+	local docker_ratelimit_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | sed 's|.*: ||')"
+
+	# echo "token                     $token"
+	# echo "response                  $response"
+	# echo "ratelimit_limit           $ratelimit_limit"
+	# echo "ratelimit_remaining       $ratelimit_remaining"
+	# echo "docker_ratelimit_source   $docker_ratelimit_source"
+
+
+	local ratelimit_current="$(echo "scale=2; $ratelimit_remaining*100/$ratelimit_limit" | bc)"
+
+	log_info "current rate limit is $ratelimit_current% ($ratelimit_remaining/$ratelimit_limit) for $docker_ratelimit_source"
 
 }
 
@@ -425,7 +434,7 @@ esac
 # - mail notification for errors
 
 
-delete_tmp
+# delete_tmp
 
 
 exit
