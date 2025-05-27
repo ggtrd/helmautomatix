@@ -134,7 +134,7 @@ json_chart() {
 	local remote_image=$4
 	local installed_version=$5
 	local remote_version=$6
-	local updatable=$7
+	local uptodate=$7
 
 	local file_tmp_item="$file_updates_now_json.item.tmp"
 	local file_tmp_list="$file_updates_now_json.list.tmp"
@@ -146,7 +146,7 @@ json_chart() {
 	# 	--arg short $remote_image_shortened \
 	# 	--arg version_installed $installed_version \
 	# 	--arg version_available $remote_version \
-	# 	--arg updatable $updatable \
+	# 	--arg uptodate $uptodate \
 	# 	'$ARGS.named' >$file_tmp_item
 
 	# jq -n --argjson chart "[]" \
@@ -156,7 +156,7 @@ json_chart() {
 	# 		--arg image $remote_image \
 	# 		--arg version_installed $installed_version \
 	# 		--arg version_available $remote_version \
-	# 		--arg updatable $updatable \
+	# 		--arg uptodate $uptodate \
 	# 		'$ARGS.named')" \
 	# 	'$ARGS.named' >$file_tmp_item
 
@@ -170,7 +170,7 @@ json_chart() {
 			--arg image $remote_image \
 			--arg version_installed $installed_version \
 			--arg version_available $remote_version \
-			--arg updatable $updatable \
+			--arg uptodate $uptodate \
 			'$ARGS.named')" \
 		'$ARGS.named' >$file_tmp_item
 
@@ -250,9 +250,9 @@ list_updates() {
 				# echo "remote_version         $remote_version"
 
 				if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
+					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "false"
 				else
-					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "up-to-date"
+					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
 				fi
 			done
 
@@ -263,15 +263,14 @@ list_updates() {
 }
 
 
-# Update all Helm Charts
-# Usage: update_charts
-update_charts() {
+# Match current deployed Helm Charts values with the new available remote version
+# Usage: match_charts_values
+match_charts_values() {
 
 	list_updates > /dev/null
 
-	# local updatable_charts="$(cat $file_updates_now_json | jq -c '.charts[] | select(.updatable == "true").name')"
-	local updatable_charts="$(cat $file_updates_now_json | jq -c '.charts[] | select(.updatable == "true")')"
-	for chart in $updatable_charts; do
+	local uptodate_charts="$(cat $file_updates_now_json | jq -c '.charts[] | select(.uptodate == "false")')"
+	for chart in $uptodate_charts; do
 
 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
 
@@ -301,8 +300,7 @@ update_charts() {
 		if [ ! -z "$(echo $keys_remote)" ] && [ ! -z "$(echo $keys_deployed)" ]; then
 			for key_remote in $keys_remote; do
 				for key_deployed in $keys_deployed; do
-					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ]; then
-						echo $key_remote
+					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ] && [ "$(echo $key_remote)" != "." ]; then
 						echo $key_deployed
 
 						# cat $file_tmp_chart_pairs_remote | grep $key_remote
@@ -329,6 +327,20 @@ update_charts() {
 	done
 	
 }
+
+
+
+# Update all Helm Charts
+# Usage: update_charts
+update_charts() {
+
+	list_updates > /dev/null
+
+	match_charts_values
+	
+}
+
+
 
 
 # Help message
