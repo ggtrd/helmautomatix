@@ -48,6 +48,10 @@ dir_tmp="/tmp/$name"
 mkdir -p $dir_tmp
 chmod -R 770 $dir_tmp
 
+dir_log="logs"
+mkdir -p $dir_log
+chmod -R 770 $dir_log
+
 file_deployments_now_json="$dir_deployments_now/deployments_$now.json"
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
