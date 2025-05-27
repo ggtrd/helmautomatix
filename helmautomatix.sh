@@ -41,8 +41,9 @@ now="$(now)"
 name="$(echo $0 | sed 's|./||' | sed 's|.sh||')"
 
 dir_deployments="deployments"
-dir_deployments_now="$dir_deployments/deployments_$now"
+dir_deployments_now="$dir_deployments/$now"
 mkdir -p $dir_deployments_now
+
 
 dir_tmp="/tmp/$name"
 mkdir -p $dir_tmp
@@ -54,6 +55,13 @@ chmod -R 770 $dir_log
 file_logs="$dir_log/$name.logs"
 
 file_deployments_json="$dir_deployments_now/deployments.json"
+
+
+# # Symoblic link to quickly browse the latest results
+# path_deployment_latest="$dir_deployments/latest"
+# rm -f $path_deployment_latest/
+# ln -sf "$dir_deployments_now/*" "$path_deployment_latest/"
+
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
@@ -110,7 +118,7 @@ delete_tmp() {
 
 
 # Stop script if missing dependency
-required_commands="jq yq helm kubectl"
+required_commands="jq yq helm kubectl curl"
 file_tmp_required_commands="$dir_tmp/required_commands"
 for command in $required_commands; do
 	if [ -z "$(which $command)" ]; then
@@ -124,6 +132,32 @@ if [ -s $file_tmp_required_commands ]; then
 	delete_tmp
 	exit
 fi
+
+
+
+
+
+# Ensure the anonymous registry API rate limit is ok
+# Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
+# Usage: ratelimit_registry
+ratelimit_registry() {
+
+	local token="$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
+	local response="$(curl --head -H "Authorization: Bearer $token" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest)"
+
+	local ratelimit_limit="$(echo $response | grep 'ratelimit-limit')"
+	local ratelimit_remaining="$(echo $response | grep 'ratelimit-remaining')"
+	local docker_ratelimit_source="$(echo $response | grep 'docker-ratelimit-source')"
+
+	echo "token                     $token"
+	echo "response                  $response"
+	echo "ratelimit_limit           $ratelimit_limit"
+	echo "ratelimit_remaining       $ratelimit_remaining"
+	echo "docker_ratelimit_source   $docker_ratelimit_source"
+
+
+}
+
 
 
 
@@ -288,15 +322,15 @@ match_charts_values() {
 
 		# Deployed (=on cluster)
 		local file_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
-		helm get values $chart_name -o json > $file_chart_pairs_deployed                                                                                 # Get the YAML keys/values of the current deployed chart and store it as JSON
-		if [ -f $file_chart_pairs_deployed ]; then                                                                                                       # Ensure the tmp file containing values exists, if not it means no values are specified
-			local pairs_deployed="$(cat $file_chart_pairs_deployed | yq)"                                                                                # Get keys/values pairs of the chart
+		helm get values $chart_name -o json > $file_chart_pairs_deployed                                                                                     # Get the YAML keys/values of the current deployed chart and store it as JSON
+		if [ -f $file_chart_pairs_deployed ]; then                                                                                                           # Ensure the tmp file containing values exists, if not it means no values are specified
+			local pairs_deployed="$(cat $file_chart_pairs_deployed | yq)"                                                                                    # Get keys/values pairs of the chart
 			local keys_deployed="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"     # Get the keys names only to be able to compare them with the new remote chart version
 		fi
 
 		# Remote (=repository)
 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
-		helm show values "$(get_chart_reference $chart_name)" > $file_tmp_chart_pairs_remote                                                                     # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
+		helm show values "$(get_chart_reference $chart_name)" > $file_tmp_chart_pairs_remote                                                                 # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
 		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
 			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
 			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"       # Get the keys names only to be able to compare them with the new remote chart version
@@ -374,6 +408,7 @@ case "$1" in
 	-l|--list-deployment)   list_charts_deployed ;;
 	-u|--do-update)         update_charts ;;
 	-h|--help|help)         display_help ;;
+	-z)         ratelimit_registry ;;
 	*)
 							if [ -z "$1" ]; then
 								display_help
