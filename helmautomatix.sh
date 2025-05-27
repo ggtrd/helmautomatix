@@ -51,8 +51,9 @@ chmod -R 770 $dir_tmp
 dir_log="logs"
 mkdir -p $dir_log
 chmod -R 770 $dir_log
+file_logs="$dir_log/$name.logs"
 
-file_deployments_now_json="$dir_deployments_now/deployments_$now.json"
+file_deployments_now_json="$dir_deployments_now/deployments.json"
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
@@ -79,7 +80,7 @@ file_deployments_now_json="$dir_deployments_now/deployments_$now.json"
 # Log general message
 # Usage: log <message>
 log() {
-	echo "$(now) $0: $1"
+	echo "$(now) $0: $1" | tee -a $file_logs
 }
 
 
@@ -202,7 +203,7 @@ list_charts_deployed() {
 			else 
 				for deployment in $deployments; do
 
-					log_info "checking deployment '$deployment'"
+					log_info "found deployment '$deployment'"
 
 					local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
 					local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
@@ -246,6 +247,10 @@ list_charts_deployed() {
 
 			fi
 		done
+
+		if [ -f $file_deployments_now_json ] && [ ! -z $file_deployments_now_json ]; then
+			log_info "deployments value written in $file_deployments_now_json"
+		fi
 	fi
 
 	cat $file_deployments_now_json
