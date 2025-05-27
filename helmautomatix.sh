@@ -199,86 +199,106 @@ json_chart() {
 }
 
 
+
 # List deployed Helm Charts
 # Usage: list_charts_deployed
 list_charts_deployed() {
-	local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
-	for namespace in $namespaces; do
-		log_info "jumping to namespace '$namespace'"
 
-		local deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
-		# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
+	if [ ! -f $file_deployments_now_json ] && [ ! -z $file_deployments_now_json ]; then 
 
-		if [ -z "$deployments" ]; then
-			log_info "no chart found on '$namespace'"
-		else 
-			for deployment in $deployments; do
+		local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
+		for namespace in $namespaces; do
+			log_info "jumping to namespace '$namespace'"
 
-				log_info "checking deployment '$deployment'"
+			local deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
+			# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 
-				local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
-				local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
-				local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
+			if [ -z "$deployments" ]; then
+				log_info "no chart found on '$namespace'"
+			else 
+				for deployment in $deployments; do
 
-				local remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
+					log_info "checking deployment '$deployment'"
 
-				# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
-				# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
-				local configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
+					local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
+					local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
+					local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
 
-				# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
-				local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
+					local remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
 
-				if [ -z $configured_repo_name ]; then
-					log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
-					log_info "look for the chart repository:   helm --namespace $namespace get metadata $installed_name"
-					log_info "ensure the repository is listed: helm repo list"
-					break
-				fi
+					# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
+					# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
+					local configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
 
-				local remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
-				local remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
+					# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
+					local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
 
-				# # Debug comment/uncomment
-				# echo "installed_name         $installed_name"
-				# echo "installed_version      $installed_version"
-				# echo "installed_status       $installed_status"
-				# echo "remote_image           $remote_image"
-				# echo "configured_repo_url    $configured_repo_url"
-				# echo "configured_repo_name   $configured_repo_name"
-				# echo "remote_image_shortened $remote_image_shortened"
-				# echo "remote_version         $remote_version"
+					if [ -z $configured_repo_name ]; then
+						log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
+						log_info "look for the chart repository:   helm --namespace $namespace get metadata $installed_name"
+						log_info "ensure the repository is listed: helm repo list"
+						break
+					fi
 
-				if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "false"
-				else
-					json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
-				fi
-			done
+					local remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
+					local remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
 
-		fi
-	done
+					# # Debug comment/uncomment
+					# echo "installed_name         $installed_name"
+					# echo "installed_version      $installed_version"
+					# echo "installed_status       $installed_status"
+					# echo "remote_image           $remote_image"
+					# echo "configured_repo_url    $configured_repo_url"
+					# echo "configured_repo_name   $configured_repo_name"
+					# echo "remote_image_shortened $remote_image_shortened"
+					# echo "remote_version         $remote_version"
+
+					if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
+						json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "false"
+					else
+						json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
+					fi
+				done
+
+			fi
+		done
+	fi
 
 	cat $file_deployments_now_json
 }
 
 
 
-# Get the name of the Helm Charts
+# Get the remote name of a given Helm Charts
 # Usage: get_chart_name <deployed chart>
 get_chart_name() {
 
-
 	local deployment_name=$1
+	list_charts_deployed > /dev/null
 
-
+	cat $file_deployments_now_json | jq ".name"
 }
 
 
-# Get the name of the configured repository related to the Helm Chart
-# Usage: get_chart_repository_configured
-get_chart_repository_configured() {
-	echo ""
+# Get the image name of a given Helm Chart
+# Usage: get_chart_image <deployed chart>
+get_chart_image() {
+
+	local deployment_name=$1
+	list_charts_deployed > /dev/null
+
+	cat $file_deployments_now_json | jq ".image"
+}
+
+
+# Get the short (= "repository/name") of a given Helm Chart
+# Usage: get_chart_short <deployed chart>
+get_chart_short() {
+
+	local deployment_name=$1
+	list_charts_deployed > /dev/null
+
+	cat $file_deployments_now_json | jq ".short"
 }
 
 
@@ -288,6 +308,7 @@ get_chart_repository_configured() {
 match_charts_values() {
 
 	list_charts_deployed > /dev/null
+
 
 	local uptodate_charts="$(cat $file_deployments_now_json | jq -c '.charts[] | select(.uptodate == "false")')"
 	for chart in $uptodate_charts; do
@@ -382,7 +403,7 @@ display_help() {
 case "$1" in
 	-l|--list-deployment)	list_charts_deployed ;;
 	-u|--do-update)			update_charts ;;
-	-z|--zz-temp)			get_chart_name && echo " --- " && get_chart_repository_configured ;;
+	-z|--zz-temp)			get_chart_name && echo " --- " && get_chart_image && echo " --- " && get_chart_short ;;
 	-h|--help|help)			display_help ;;
 	*)
 							if [ -z "$1" ]; then
