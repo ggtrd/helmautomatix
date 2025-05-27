@@ -49,8 +49,6 @@ mkdir -p $dir_tmp
 chmod -R 770 $dir_tmp
 
 file_deployments_now_json="$dir_deployments_now/deployments_$now.json"
-# jq -cn '{charts: $ARGS.named}' > $file_deployments_now_json
-# jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_now_json
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
@@ -138,28 +136,6 @@ json_chart() {
 
 	local file_tmp_item="$file_deployments_now_json.item.tmp"
 	local file_tmp_list="$file_deployments_now_json.list.tmp"
-
-	# WORKS
-	# jq -n \
-	# 	--arg name $installed_name \
-	# 	--arg image $remote_image \
-	# 	--arg short $remote_image_shortened \
-	# 	--arg version_installed $installed_version \
-	# 	--arg version_available $remote_version \
-	# 	--arg uptodate $uptodate \
-	# 	'$ARGS.named' >$file_tmp_item
-
-	# jq -n --argjson chart "[]" \
-	# 	"$(jq -n \
-	# 		--arg name $installed_name \
-	# 		--arg short $remote_image_shortened \
-	# 		--arg image $remote_image \
-	# 		--arg version_installed $installed_version \
-	# 		--arg version_available $remote_version \
-	# 		--arg uptodate $uptodate \
-	# 		'$ARGS.named')" \
-	# 	'$ARGS.named' >$file_tmp_item
-
 
 
 	jq -n --argjson chart "[]" \
@@ -311,8 +287,7 @@ match_charts_values() {
 
 		# Remote (=repository)
 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
-		# helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                                                                  # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
-		helm show values "$(get_chart_short $chart_name)" > $file_tmp_chart_pairs_remote                                                                                    # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
+		helm show values "$(get_chart_short $chart_name)" > $file_tmp_chart_pairs_remote                                                                     # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
 		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
 			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
 			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"       # Get the keys names only to be able to compare them with the new remote chart version
@@ -320,9 +295,9 @@ match_charts_values() {
 
 		
 		# echo "chart             " $chart_name
-		# # echo "pairs_deployed    " $pairs_deployed
+		# echo "pairs_deployed    " $pairs_deployed
 		# echo "keys_deployed     " $keys_deployed
-		# # echo "pairs_remote      " $pairs_remote
+		# echo "pairs_remote      " $pairs_remote
 		# echo "keys_remote       " $keys_remote
 
 		if [ ! -z "$(echo $keys_remote)" ] && [ ! -z "$(echo $keys_deployed)" ]; then
@@ -330,8 +305,6 @@ match_charts_values() {
 				for key_deployed in $keys_deployed; do
 					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ] && [ "$(echo $key_remote)" != "." ]; then
 						echo $key_deployed
-
-						# cat $file_tmp_chart_pairs_remote | grep $key_remote	
 					elif [ "$(echo $key_remote)" = "." ]; then
 						log_info "no value found on '$chart_name'"				
 					fi
