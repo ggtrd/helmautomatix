@@ -50,7 +50,7 @@ chmod -R 770 $dir_tmp
 
 file_deployments_now_json="$dir_deployments_now/deployments_$now.json"
 # jq -cn '{charts: $ARGS.named}' > $file_deployments_now_json
-jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_now_json
+# jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_now_json
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
@@ -204,7 +204,11 @@ json_chart() {
 # Usage: list_charts_deployed
 list_charts_deployed() {
 
+	# First ensure the file containing the charts list doesn't exist (because this function will be called several time over the script)
 	if [ ! -f $file_deployments_now_json ] && [ ! -z $file_deployments_now_json ]; then 
+
+		# Prepare an empty JSON array to receive the charts properties
+		jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_now_json
 
 		local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
 		for namespace in $namespaces; do
