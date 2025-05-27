@@ -273,25 +273,37 @@ list_charts_deployed() {
 
 
 
-# Get the remote name of a given Helm Charts
-# Usage: get_chart_remote_name <deployed chart>
-get_chart_remote_name() {
+# # Get the remote name of a given Helm Charts
+# # Usage: get_chart_remote_name <deployed chart>
+# get_chart_remote_name() {
+
+# 	local deployment_name=$1
+# 	list_charts_deployed > /dev/null
+
+# 	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 2 | grep -w $deployment_name
+# }
+
+
+# # Get the configured repository name of a given Helm Chart
+# # Usage: get_chart_configured_repository <deployed chart>
+# get_chart_configured_repository() {
+
+# 	local deployment_name=$1
+# 	list_charts_deployed > /dev/null
+
+# 	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 1 | grep -w $deployment_name
+# }
+
+
+# Get the short (= "repository/name") of a given Helm Chart
+# Usage: get_chart_short <deployed chart>
+get_chart_short() {
 
 	local deployment_name=$1
 	list_charts_deployed > /dev/null
 
-	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 2
-}
-
-
-# Get the configured repository name of a given Helm Chart
-# Usage: get_chart_configured_repository <deployed chart>
-get_chart_configured_repository() {
-
-	local deployment_name=$1
-	list_charts_deployed > /dev/null
-
-	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 1
+	# cat $file_deployments_now_json | jq ".charts[].short" | grep -w $deployment_name
+	cat $file_deployments_now_json | jq '.charts[] | select(.name=="'$deployment_name'") | .short' | tr -d \"
 }
 
 
@@ -318,8 +330,8 @@ match_charts_values() {
 
 		# Remote (=repository)
 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
-		# helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                                                                    # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
-		helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                                                                    # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
+		# helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                                                                  # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
+		helm show values "$(get_chart_short $chart_name)" > $file_tmp_chart_pairs_remote                                                                                    # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
 		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
 			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
 			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"       # Get the keys names only to be able to compare them with the new remote chart version
@@ -394,10 +406,12 @@ display_help() {
 
 # The options (except --help) must be called with root
 case "$1" in
-	-l|--list-deployment)	list_charts_deployed ;;
-	-u|--do-update)			update_charts ;;
-	-z|--zz-temp)			get_chart_remote_name && echo " --- " && get_chart_configured_repository ;;
-	-h|--help|help)			display_help ;;
+	-l|--list-deployment)   list_charts_deployed ;;
+	-u|--do-update)         update_charts ;;
+	# -n|--get-name)        get_chart_remote_name $2 ;;
+	# -r|--get-repository)	get_chart_configured_repository $2 ;;
+	-s|--get-short)         get_chart_short $2 ;;
+	-h|--help|help)         display_help ;;
 	*)
 							if [ -z "$1" ]; then
 								display_help
