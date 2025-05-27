@@ -53,7 +53,7 @@ mkdir -p $dir_log
 chmod -R 770 $dir_log
 file_logs="$dir_log/$name.logs"
 
-file_deployments_now_json="$dir_deployments_now/deployments.json"
+file_deployments_json="$dir_deployments_now/deployments.json"
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
@@ -128,26 +128,26 @@ fi
 
 
 # Create a JSON array containing instaleld Helm Charts informations
-# Usage: json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true/false"
+# Usage: json_chart $namespace $installed_name $remote_image_referenceened $remote_image $installed_version $remote_version "true/false"
 json_chart() {
 
 	local namespace=$1
 	local installed_name=$2
-	local remote_image_shortened=$3
+	local remote_image_referenceened=$3
 	local remote_image=$4
 	local installed_version=$5
 	local remote_version=$6
 	local uptodate=$7
 
-	local file_tmp_item="$file_deployments_now_json.item.tmp"
-	local file_tmp_list="$file_deployments_now_json.list.tmp"
+	local file_tmp_item="$dir_tmp/deployment.item.tmp"
+	local file_tmp_list="$dir_tmp/deployment.list.tmp"
 
 
 	jq -n --argjson chart "[]" \
 		"$(jq -n \
 			--arg namespace $namespace \
 			--arg name $installed_name \
-			--arg short $remote_image_shortened \
+			--arg reference $remote_image_referenceened \
 			--arg image $remote_image \
 			--arg version_installed $installed_version \
 			--arg version_available $remote_version \
@@ -175,8 +175,8 @@ json_chart() {
 	#     },
 	#   ]
 	# }
-	jq '.charts += $inputs' $file_deployments_now_json --slurpfile inputs $file_tmp_item >$file_tmp_list
-	cat $file_tmp_list >$file_deployments_now_json
+	jq '.charts += $inputs' $file_deployments_json --slurpfile inputs $file_tmp_item >$file_tmp_list
+	cat $file_tmp_list >$file_deployments_json
 }
 
 
@@ -186,10 +186,10 @@ json_chart() {
 list_charts_deployed() {
 
 	# First ensure the file containing the charts list doesn't exist (because this function will be called several time over the script)
-	if [ ! -f $file_deployments_now_json ] && [ ! -z $file_deployments_now_json ]; then 
+	if [ ! -f $file_deployments_json ] && [ ! -z $file_deployments_json ]; then 
 
 		# Prepare an empty JSON array to receive the charts properties
-		jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_now_json
+		jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_json
 
 		local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
 		for namespace in $namespaces; do
@@ -225,8 +225,8 @@ list_charts_deployed() {
 						break
 					fi
 
-					local remote_image_shortened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
-					local remote_version="$(helm --namespace $namespace show chart $remote_image_shortened | grep appVersion | sed 's|.*: ||')"
+					local remote_image_referenceened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
+					local remote_version="$(helm --namespace $namespace show chart $remote_image_referenceened | grep appVersion | sed 's|.*: ||')"
 
 					# # Debug comment/uncomment
 					# echo "installed_name         $installed_name"
@@ -235,38 +235,38 @@ list_charts_deployed() {
 					# echo "remote_image           $remote_image"
 					# echo "configured_repo_url    $configured_repo_url"
 					# echo "configured_repo_name   $configured_repo_name"
-					# echo "remote_image_shortened $remote_image_shortened"
+					# echo "remote_image_referenceened $remote_image_referenceened"
 					# echo "remote_version         $remote_version"
 
 					if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-						json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "false"
+						json_chart $namespace $installed_name $remote_image_referenceened $remote_image $installed_version $remote_version "false"
 					else
-						json_chart $namespace $installed_name $remote_image_shortened $remote_image $installed_version $remote_version "true"
+						json_chart $namespace $installed_name $remote_image_referenceened $remote_image $installed_version $remote_version "true"
 					fi
 				done
 
 			fi
 		done
 
-		if [ -f $file_deployments_now_json ] && [ ! -z $file_deployments_now_json ]; then
-			log_info "deployments value written in $file_deployments_now_json"
+		if [ -f $file_deployments_json ] && [ ! -z $file_deployments_json ]; then
+			log_info "deployments value written in $file_deployments_json"
 		fi
 	fi
 
-	cat $file_deployments_now_json
+	cat $file_deployments_json
 }
 
 
 
-# Get the short (= "repository/name") of a given Helm Chart
-# Usage: get_chart_short <deployed chart>
-get_chart_short() {
+# Get the reference (= "repository/name") of a given Helm Chart
+# Usage: get_chart_reference <deployed chart>
+get_chart_reference() {
 
 	local deployment_name=$1
 	list_charts_deployed > /dev/null
 
-	# cat $file_deployments_now_json | jq ".charts[].short" | grep -w $deployment_name
-	cat $file_deployments_now_json | jq '.charts[] | select(.name=="'$deployment_name'") | .short' | tr -d \"
+	# cat $file_deployments_json | jq ".charts[].reference" | grep -w $deployment_name
+	cat $file_deployments_json | jq '.charts[] | select(.name=="'$deployment_name'") | .reference' | tr -d \"
 }
 
 
@@ -278,7 +278,7 @@ match_charts_values() {
 	list_charts_deployed > /dev/null
 
 
-	local uptodate_charts="$(cat $file_deployments_now_json | jq -c '.charts[] | select(.uptodate == "false")')"
+	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
 	for chart in $uptodate_charts; do
 
 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
@@ -287,16 +287,16 @@ match_charts_values() {
 
 
 		# Deployed (=on cluster)
-		local file_tmp_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
-		helm get values $chart_name -o json > $file_tmp_chart_pairs_deployed                                                                                 # Get the YAML keys/values of the current deployed chart and store it as JSON
-		if [ -f $file_tmp_chart_pairs_deployed ]; then                                                                                                       # Ensure the tmp file containing values exists, if not it means no values are specified
-			local pairs_deployed="$(cat $file_tmp_chart_pairs_deployed | yq)"                                                                                # Get keys/values pairs of the chart
+		local file_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
+		helm get values $chart_name -o json > $file_chart_pairs_deployed                                                                                 # Get the YAML keys/values of the current deployed chart and store it as JSON
+		if [ -f $file_chart_pairs_deployed ]; then                                                                                                       # Ensure the tmp file containing values exists, if not it means no values are specified
+			local pairs_deployed="$(cat $file_chart_pairs_deployed | yq)"                                                                                # Get keys/values pairs of the chart
 			local keys_deployed="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"     # Get the keys names only to be able to compare them with the new remote chart version
 		fi
 
 		# Remote (=repository)
 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
-		helm show values "$(get_chart_short $chart_name)" > $file_tmp_chart_pairs_remote                                                                     # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
+		helm show values "$(get_chart_reference $chart_name)" > $file_tmp_chart_pairs_remote                                                                     # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
 		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
 			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
 			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"       # Get the keys names only to be able to compare them with the new remote chart version
@@ -333,7 +333,7 @@ match_charts_values() {
 
 
 		# Ensure the current configured pairs are still compatible with the new chart version, or give up the update
-		#helm show values $short | yq '.'
+		#helm show values $reference | yq '.'
 
 
 	done
@@ -390,6 +390,7 @@ esac
 # - mail notification for errors
 
 
-# rm -rf $dir_tmp
+delete_tmp
+
 
 exit
