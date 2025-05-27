@@ -273,28 +273,6 @@ list_charts_deployed() {
 
 
 
-# # Get the remote name of a given Helm Charts
-# # Usage: get_chart_remote_name <deployed chart>
-# get_chart_remote_name() {
-
-# 	local deployment_name=$1
-# 	list_charts_deployed > /dev/null
-
-# 	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 2 | grep -w $deployment_name
-# }
-
-
-# # Get the configured repository name of a given Helm Chart
-# # Usage: get_chart_configured_repository <deployed chart>
-# get_chart_configured_repository() {
-
-# 	local deployment_name=$1
-# 	list_charts_deployed > /dev/null
-
-# 	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 1 | grep -w $deployment_name
-# }
-
-
 # Get the short (= "repository/name") of a given Helm Chart
 # Usage: get_chart_short <deployed chart>
 get_chart_short() {
@@ -320,6 +298,9 @@ match_charts_values() {
 
 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
 
+		log_info "getting values of '$chart_name'"
+
+
 		# Deployed (=on cluster)
 		local file_tmp_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
 		helm get values $chart_name -o json > $file_tmp_chart_pairs_deployed                                                                                 # Get the YAML keys/values of the current deployed chart and store it as JSON
@@ -338,11 +319,11 @@ match_charts_values() {
 		fi
 
 		
-		# echo -n "chart             " $chart_name
-		# # echo -n "pairs_deployed    " $pairs_deployed
-		# echo -n "keys_deployed     " $keys_deployed
-		# # echo -n "pairs_remote      " $pairs_remote
-		# echo -n "keys_remote       " $keys_remote
+		# echo "chart             " $chart_name
+		# # echo "pairs_deployed    " $pairs_deployed
+		# echo "keys_deployed     " $keys_deployed
+		# # echo "pairs_remote      " $pairs_remote
+		# echo "keys_remote       " $keys_remote
 
 		if [ ! -z "$(echo $keys_remote)" ] && [ ! -z "$(echo $keys_deployed)" ]; then
 			for key_remote in $keys_remote; do
@@ -350,7 +331,9 @@ match_charts_values() {
 					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ] && [ "$(echo $key_remote)" != "." ]; then
 						echo $key_deployed
 
-						# cat $file_tmp_chart_pairs_remote | grep $key_remote
+						# cat $file_tmp_chart_pairs_remote | grep $key_remote	
+					elif [ "$(echo $key_remote)" = "." ]; then
+						log_info "no value found on '$chart_name'"				
 					fi
 				done
 			done
@@ -408,9 +391,6 @@ display_help() {
 case "$1" in
 	-l|--list-deployment)   list_charts_deployed ;;
 	-u|--do-update)         update_charts ;;
-	# -n|--get-name)        get_chart_remote_name $2 ;;
-	# -r|--get-repository)	get_chart_configured_repository $2 ;;
-	-s|--get-short)         get_chart_short $2 ;;
 	-h|--help|help)         display_help ;;
 	*)
 							if [ -z "$1" ]; then
