@@ -40,17 +40,17 @@ now() {
 now="$(now)"
 name="$(echo $0 | sed 's|./||' | sed 's|.sh||')"
 
-dir_updates="updates"
-dir_updates_now="$dir_updates/updates_$now"
-mkdir -p $dir_updates_now
+dir_deployments="deployments"
+dir_deployments_now="$dir_deployments/deployments_$now"
+mkdir -p $dir_deployments_now
 
 dir_tmp="/tmp/$name"
 mkdir -p $dir_tmp
 chmod -R 770 $dir_tmp
 
-file_updates_now_json="$dir_updates_now/updates_$now.json"
-# jq -cn '{charts: $ARGS.named}' > $file_updates_now_json
-jq -n --argjson charts "[]" '$ARGS.named' >$file_updates_now_json
+file_deployments_now_json="$dir_deployments_now/deployments_$now.json"
+# jq -cn '{charts: $ARGS.named}' > $file_deployments_now_json
+jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_now_json
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
@@ -136,8 +136,8 @@ json_chart() {
 	local remote_version=$6
 	local uptodate=$7
 
-	local file_tmp_item="$file_updates_now_json.item.tmp"
-	local file_tmp_list="$file_updates_now_json.list.tmp"
+	local file_tmp_item="$file_deployments_now_json.item.tmp"
+	local file_tmp_list="$file_deployments_now_json.list.tmp"
 
 	# WORKS
 	# jq -n \
@@ -194,14 +194,14 @@ json_chart() {
 	#     },
 	#   ]
 	# }
-	jq '.charts += $inputs' $file_updates_now_json --slurpfile inputs $file_tmp_item >$file_tmp_list
-	cat $file_tmp_list >$file_updates_now_json
+	jq '.charts += $inputs' $file_deployments_now_json --slurpfile inputs $file_tmp_item >$file_tmp_list
+	cat $file_tmp_list >$file_deployments_now_json
 }
 
 
-# List Helm Charts available updates
-# Usage: list_updates
-list_updates() {
+# List deployed Helm Charts
+# Usage: list_charts_deployed
+list_charts_deployed() {
 	local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
 	for namespace in $namespaces; do
 		log_info "jumping to namespace '$namespace'"
@@ -259,23 +259,43 @@ list_updates() {
 		fi
 	done
 
-	cat $file_updates_now_json
+	cat $file_deployments_now_json
 }
+
+
+
+# Get the name of the Helm Charts
+# Usage: get_chart_name <deployed chart>
+get_chart_name() {
+
+
+	local deployment_name=$1
+
+
+}
+
+
+# Get the name of the configured repository related to the Helm Chart
+# Usage: get_chart_repository_configured
+get_chart_repository_configured() {
+	echo ""
+}
+
 
 
 # Match current deployed Helm Charts values with the new available remote version
 # Usage: match_charts_values
 match_charts_values() {
 
-	list_updates > /dev/null
+	list_charts_deployed > /dev/null
 
-	local uptodate_charts="$(cat $file_updates_now_json | jq -c '.charts[] | select(.uptodate == "false")')"
+	local uptodate_charts="$(cat $file_deployments_now_json | jq -c '.charts[] | select(.uptodate == "false")')"
 	for chart in $uptodate_charts; do
 
 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
 
 		# Deployed (=on cluster)
-		local file_tmp_chart_pairs_deployed="$dir_updates_now/pairs_deployed_$chart_name.yml"
+		local file_tmp_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
 		helm get values $chart_name -o json > $file_tmp_chart_pairs_deployed                                                                                 # Get the YAML keys/values of the current deployed chart and store it as JSON
 		if [ -f $file_tmp_chart_pairs_deployed ]; then                                                                                                       # Ensure the tmp file containing values exists, if not it means no values are specified
 			local pairs_deployed="$(cat $file_tmp_chart_pairs_deployed | yq)"                                                                                # Get keys/values pairs of the chart
@@ -284,6 +304,7 @@ match_charts_values() {
 
 		# Remote (=repository)
 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
+		# helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                                                                    # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
 		helm show values bitnami/wordpress > $file_tmp_chart_pairs_remote                                                                                    # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
 		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
 			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
@@ -334,7 +355,7 @@ match_charts_values() {
 # Usage: update_charts
 update_charts() {
 
-	list_updates > /dev/null
+	list_charts_deployed > /dev/null
 
 	match_charts_values
 	
@@ -359,8 +380,9 @@ display_help() {
 
 # The options (except --help) must be called with root
 case "$1" in
-	-l|--list-updates)		list_updates ;;
+	-l|--list-deployment)	list_charts_deployed ;;
 	-u|--do-update)			update_charts ;;
+	-z|--zz-temp)			get_chart_name && echo " --- " && get_chart_repository_configured ;;
 	-h|--help|help)			display_help ;;
 	*)
 							if [ -z "$1" ]; then
