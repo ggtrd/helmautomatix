@@ -274,35 +274,24 @@ list_charts_deployed() {
 
 
 # Get the remote name of a given Helm Charts
-# Usage: get_chart_name <deployed chart>
-get_chart_name() {
+# Usage: get_chart_remote_name <deployed chart>
+get_chart_remote_name() {
 
 	local deployment_name=$1
 	list_charts_deployed > /dev/null
 
-	cat $file_deployments_now_json | jq ".name"
+	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 2
 }
 
 
-# Get the image name of a given Helm Chart
-# Usage: get_chart_image <deployed chart>
-get_chart_image() {
+# Get the configured repository name of a given Helm Chart
+# Usage: get_chart_configured_repository <deployed chart>
+get_chart_configured_repository() {
 
 	local deployment_name=$1
 	list_charts_deployed > /dev/null
 
-	cat $file_deployments_now_json | jq ".image"
-}
-
-
-# Get the short (= "repository/name") of a given Helm Chart
-# Usage: get_chart_short <deployed chart>
-get_chart_short() {
-
-	local deployment_name=$1
-	list_charts_deployed > /dev/null
-
-	cat $file_deployments_now_json | jq ".short"
+	cat $file_deployments_now_json | jq ".charts[].short" | tr -d \" | cut -d / -f 1
 }
 
 
@@ -407,7 +396,7 @@ display_help() {
 case "$1" in
 	-l|--list-deployment)	list_charts_deployed ;;
 	-u|--do-update)			update_charts ;;
-	-z|--zz-temp)			get_chart_name && echo " --- " && get_chart_image && echo " --- " && get_chart_short ;;
+	-z|--zz-temp)			get_chart_remote_name && echo " --- " && get_chart_configured_repository ;;
 	-h|--help|help)			display_help ;;
 	*)
 							if [ -z "$1" ]; then
