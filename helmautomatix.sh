@@ -139,32 +139,31 @@ fi
 
 # Ensure the anonymous registry API rate limit is ok
 # Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
-# Usage: ratelimit_registry
-ratelimit_registry() {
-
-
-	# mkdir $dir_tmp
+# Usage: rate_registry
+rate_registry() {
 
 	local token="$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
 
 	local file_response_tmp="$dir_tmp/ratelimit"
 	curl -s --head -H "Authorization: Bearer $token" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest -o $file_response_tmp
 
-	local ratelimit_limit="$(cat $file_response_tmp | grep 'ratelimit-limit' | sed 's|.*: ||' | sed 's|;.*||')"
-	local ratelimit_remaining="$(cat $file_response_tmp | grep 'ratelimit-remaining' | sed 's|.*: ||' | sed 's|;.*||')"
-	local docker_ratelimit_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | sed 's|.*: ||')"
+	local rate_limit="$(cat $file_response_tmp | grep 'ratelimit-limit' | sed 's|.*: ||' | sed 's|;.*||')"
+	local rate_remaining="$(cat $file_response_tmp | grep 'ratelimit-remaining' | sed 's|.*: ||' | sed 's|;.*||')"
+	local rate_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | cut -d ' ' -f 2)"
 
-	# echo "token                     $token"
-	# echo "response                  $response"
-	# echo "ratelimit_limit           $ratelimit_limit"
-	# echo "ratelimit_remaining       $ratelimit_remaining"
-	# echo "docker_ratelimit_source   $docker_ratelimit_source"
+	# echo "token		         $token"
+	# echo "response             $response"
+	# echo "rate_limit           $rate_limit"
+	# echo "rate_remaining       $rate_remaining"
+	# echo "rate_source          $rate_source"
 
 
-	local ratelimit_current="$(echo "scale=2; $ratelimit_remaining*100/$ratelimit_limit" | bc)"
-
-	log_info "current rate limit is $ratelimit_current% ($ratelimit_remaining/$ratelimit_limit) for $docker_ratelimit_source"
-
+	local rate_percent="$(echo "scale=2; $rate_remaining*100/$rate_limit" | bc | cut -d . -f 1)"
+	# Cancel script if current limit is over 10% to avoid beeing blocked for next hours
+	if [ $rate_percent -le 90 ]; then
+		log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting." | tr -dc '[:print:]'
+		exit
+	fi
 }
 
 
@@ -417,7 +416,7 @@ case "$1" in
 	-l|--list-deployment)   list_charts_deployed ;;
 	-u|--do-update)         update_charts ;;
 	-h|--help|help)         display_help ;;
-	-z)         ratelimit_registry ;;
+	-z)         rate_registry ;;
 	*)
 							if [ -z "$1" ]; then
 								display_help
