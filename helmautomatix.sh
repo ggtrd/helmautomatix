@@ -169,7 +169,7 @@ rate_percent=$(echo $rate_registry | cut -d ';' -f 1)
 rate_limit=$(echo $rate_registry | cut -d ';' -f 2)
 rate_remaining=$(echo $rate_registry | cut -d ';' -f 3)
 rate_source=$(echo $rate_registry | cut -d ';' -f 4)
-if [ $rate_percent -le 100 ]; then
+if [ $rate_percent -le 90 ]; then
 	log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting."
 	exit
 fi
