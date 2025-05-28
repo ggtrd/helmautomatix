@@ -57,10 +57,14 @@ file_logs="$dir_log/$name.logs"
 file_deployments_json="$dir_deployments_now/deployments.json"
 
 
+
+
 # # Symoblic link to quickly browse the latest results
 # path_deployment_latest="$dir_deployments/latest"
 # rm -f $path_deployment_latest/
 # ln -sf "$dir_deployments_now/*" "$path_deployment_latest/"
+
+
 
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
@@ -85,11 +89,13 @@ file_deployments_json="$dir_deployments_now/deployments.json"
 # helm repo update
 
 
+
 # Log general message
 # Usage: log <message>
 log() {
 	echo "$(now) $0: $1" | tee -a $file_logs
 }
+
 
 
 # Log error message
@@ -105,7 +111,6 @@ log_error() {
 log_info() {
 	log " info: $1"
 }
-
 
 
 
@@ -135,11 +140,9 @@ fi
 
 
 
-
-
-# Ensure the anonymous registry API rate limit is ok
-# Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
-# Usage: rate_registry
+# # Ensure the anonymous registry API rate limit is ok
+# # Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
+# # Usage: rate_registry
 rate_registry() {
 
 	local token="$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
@@ -149,7 +152,7 @@ rate_registry() {
 
 	local rate_limit="$(cat $file_response_tmp | grep 'ratelimit-limit' | sed 's|.*: ||' | sed 's|;.*||')"
 	local rate_remaining="$(cat $file_response_tmp | grep 'ratelimit-remaining' | sed 's|.*: ||' | sed 's|;.*||')"
-	local rate_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | cut -d ' ' -f 2)"
+	local rate_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | sed 's|.*: \([0-9.]\).*|\1|')"
 
 	# echo "token		         $token"
 	# echo "response             $response"
@@ -157,15 +160,19 @@ rate_registry() {
 	# echo "rate_remaining       $rate_remaining"
 	# echo "rate_source          $rate_source"
 
-
 	local rate_percent="$(echo "scale=2; $rate_remaining*100/$rate_limit" | bc | cut -d . -f 1)"
-	# Cancel script if current limit is over 10% to avoid beeing blocked for next hours
-	if [ $rate_percent -le 90 ]; then
-		log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting." | tr -dc '[:print:]'
-		exit
-	fi
+	echo "$rate_percent;$rate_limit;$rate_remaining;$rate_source"
 }
-
+# Cancel script if current available rate is under 90% to avoid beeing blocked for next hours
+rate_registry=$(rate_registry)
+rate_percent=$(echo $rate_registry | cut -d ';' -f 1)
+rate_limit=$(echo $rate_registry | cut -d ';' -f 2)
+rate_remaining=$(echo $rate_registry | cut -d ';' -f 3)
+rate_source=$(echo $rate_registry | cut -d ';' -f 4)
+if [ $rate_percent -le 100 ]; then
+	log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting."
+	exit
+fi
 
 
 
@@ -319,7 +326,6 @@ match_charts_values() {
 
 	list_charts_deployed > /dev/null
 
-
 	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
 	for chart in $uptodate_charts; do
 
@@ -396,7 +402,6 @@ update_charts() {
 
 
 
-
 # Help message
 # Usage: display_help
 display_help() {
@@ -409,14 +414,12 @@ display_help() {
 
 
 
-
-
 # The options (except --help) must be called with root
 case "$1" in
 	-l|--list-deployment)   list_charts_deployed ;;
 	-u|--do-update)         update_charts ;;
 	-h|--help|help)         display_help ;;
-	-z)         rate_registry ;;
+	# -z)                     placeholder ;;
 	*)
 							if [ -z "$1" ]; then
 								display_help
@@ -427,13 +430,13 @@ esac
 
 
 
-
-
 # todo:
 # - mail notification for errors
 
 
+
 # delete_tmp
+
 
 
 exit
