@@ -140,9 +140,9 @@ fi
 
 
 
-# # Ensure the anonymous registry API rate limit is ok
-# # Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
-# # Usage: rate_registry
+# Ensure the anonymous registry API rate limit is ok
+# Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
+# Usage: rate_registry
 rate_registry() {
 
 	local token="$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
@@ -320,73 +320,73 @@ get_chart_reference() {
 
 
 
-# Match current deployed Helm Charts values with the new available remote version
-# Usage: match_charts_values
-match_charts_values() {
+# # Match current deployed Helm Charts values with the new available remote version
+# # Usage: match_charts_values
+# match_charts_values() {
 
-	list_charts_deployed > /dev/null
+# 	list_charts_deployed > /dev/null
 
-	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
-	for chart in $uptodate_charts; do
+# 	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
+# 	for chart in $uptodate_charts; do
 
-		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
+# 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
 
-		log_info "getting values of '$chart_name'"
+# 		log_info "getting values of '$chart_name'"
 
 
-		# Deployed (=on cluster)
-		local file_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
-		helm get values $chart_name -o json > $file_chart_pairs_deployed                                                                                     # Get the YAML keys/values of the current deployed chart and store it as JSON
-		if [ -f $file_chart_pairs_deployed ]; then                                                                                                           # Ensure the tmp file containing values exists, if not it means no values are specified
-			local pairs_deployed="$(cat $file_chart_pairs_deployed | yq)"                                                                                    # Get keys/values pairs of the chart
-			local keys_deployed="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"     # Get the keys names only to be able to compare them with the new remote chart version
-		fi
+# 		# Deployed (=on cluster)
+# 		local file_chart_pairs_deployed="$dir_deployments_now/pairs_deployed_$chart_name.yml"
+# 		helm get values $chart_name -o json > $file_chart_pairs_deployed                                                                                     # Get the YAML keys/values of the current deployed chart and store it as JSON
+# 		if [ -f $file_chart_pairs_deployed ]; then                                                                                                           # Ensure the tmp file containing values exists, if not it means no values are specified
+# 			local pairs_deployed="$(cat $file_chart_pairs_deployed | yq)"                                                                                    # Get keys/values pairs of the chart
+# 			local keys_deployed="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"     # Get the keys names only to be able to compare them with the new remote chart version
+# 		fi
 
-		# Remote (=repository)
-		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
-		helm show values "$(get_chart_reference $chart_name)" > $file_tmp_chart_pairs_remote                                                                 # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
-		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
-			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
-			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"       # Get the keys names only to be able to compare them with the new remote chart version
-		fi
+# 		# Remote (=repository)
+# 		local file_tmp_chart_pairs_remote="$dir_tmp/pairs_remote_$chart_name.yml"
+# 		helm show values "$(get_chart_reference $chart_name)" > $file_tmp_chart_pairs_remote                                                                 # Get the YAML keys/values of the new version to be able to ensure that the current values are still compatibles
+# 		if [ -f $file_tmp_chart_pairs_remote ]; then                                                                                                         # Ensure the tmp file containing values exists, if not it means no values are specified
+# 			local pairs_remote="$(cat $file_tmp_chart_pairs_remote | yq)"                                                                                    # Get keys/values pairs of the chart
+# 			local keys_remote="$(echo $pairs_deployed | jq -r --stream 'select(has(1)) | ".\(first | join(".")) = \(last | @json)"' | sed 's| =.*||')"       # Get the keys names only to be able to compare them with the new remote chart version
+# 		fi
 
 		
-		# echo "chart             " $chart_name
-		# echo "pairs_deployed    " $pairs_deployed
-		# echo "keys_deployed     " $keys_deployed
-		# echo "pairs_remote      " $pairs_remote
-		# echo "keys_remote       " $keys_remote
+# 		# echo "chart             " $chart_name
+# 		# echo "pairs_deployed    " $pairs_deployed
+# 		# echo "keys_deployed     " $keys_deployed
+# 		# echo "pairs_remote      " $pairs_remote
+# 		# echo "keys_remote       " $keys_remote
 
-		if [ ! -z "$(echo $keys_remote)" ] && [ ! -z "$(echo $keys_deployed)" ]; then
-			for key_remote in $keys_remote; do
-				for key_deployed in $keys_deployed; do
-					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ] && [ "$(echo $key_remote)" != "." ]; then
-						echo $key_deployed
-					elif [ "$(echo $key_remote)" = "." ]; then
-						log_info "no value found on '$chart_name'"				
-					fi
-				done
-			done
-		fi
-
-
-		# # Ensure the key list is not empty
-		# if [ ! -z "$(echo $keys)" ]; then
-		# 	for key in $keys; do
-
-		# 		# Here use yq and not jq since the remotes pairs are in YAML and not JSON
-		# 		local values="$(cat $file_tmp_chart_pairs_remote | yq ".$key")"
-		# 	done
-		# fi
+# 		if [ ! -z "$(echo $keys_remote)" ] && [ ! -z "$(echo $keys_deployed)" ]; then
+# 			for key_remote in $keys_remote; do
+# 				for key_deployed in $keys_deployed; do
+# 					if [ "$(echo $key_remote)" = "$(echo $key_deployed)" ] && [ "$(echo $key_remote)" != "." ]; then
+# 						echo $key_deployed
+# 					elif [ "$(echo $key_remote)" = "." ]; then
+# 						log_info "no value found on '$chart_name'"				
+# 					fi
+# 				done
+# 			done
+# 		fi
 
 
-		# Ensure the current configured pairs are still compatible with the new chart version, or give up the update
-		#helm show values $reference | yq '.'
+# 		# # Ensure the key list is not empty
+# 		# if [ ! -z "$(echo $keys)" ]; then
+# 		# 	for key in $keys; do
+
+# 		# 		# Here use yq and not jq since the remotes pairs are in YAML and not JSON
+# 		# 		local values="$(cat $file_tmp_chart_pairs_remote | yq ".$key")"
+# 		# 	done
+# 		# fi
 
 
-	done
+# 		# Ensure the current configured pairs are still compatible with the new chart version, or give up the update
+# 		#helm show values $reference | yq '.'
+
+
+# 	done
 	
-}
+# }
 
 
 
@@ -396,8 +396,35 @@ update_charts() {
 
 	list_charts_deployed > /dev/null
 
-	match_charts_values
+	# match_charts_values
 	
+	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
+	for chart in $uptodate_charts; do
+
+		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
+		local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
+
+		log_info "updating '$chart_name'"
+
+	# echo $chart_name
+		helm upgrade --reuse-values $chart_name $chart_reference
+
+	done
+
+}
+
+
+
+# Check the status of a deployment. Permit to ensure an upgrade has well worked.
+# Usage: check_deployment_status <deployment name>
+check_deployment_status() {
+
+	local deployment_name=$1
+
+
+
+	# helm rollback
+	# email alert
 }
 
 
