@@ -169,7 +169,7 @@ rate_percent=$(echo $rate_registry | cut -d ';' -f 1)
 rate_limit=$(echo $rate_registry | cut -d ';' -f 2)
 rate_remaining=$(echo $rate_registry | cut -d ';' -f 3)
 rate_source=$(echo $rate_registry | cut -d ';' -f 4)
-if [ $rate_percent -le 90 ]; then
+if [ $rate_percent -le 80 ]; then
 	log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting."
 	exit
 fi
@@ -177,12 +177,12 @@ fi
 
 
 # Create a JSON array containing instaleld Helm Charts informations
-# Usage: json_chart $namespace $installed_name $remote_image_referenceened $remote_image $installed_version $remote_version "true/false"
+# Usage: json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "true/false"
 json_chart() {
 
 	local namespace=$1
 	local installed_name=$2
-	local remote_image_referenceened=$3
+	local remote_image_reference=$3
 	local remote_image=$4
 	local installed_version=$5
 	local remote_version=$6
@@ -196,7 +196,7 @@ json_chart() {
 		"$(jq -n \
 			--arg namespace $namespace \
 			--arg name $installed_name \
-			--arg reference $remote_image_referenceened \
+			--arg reference $remote_image_reference \
 			--arg image $remote_image \
 			--arg version_installed $installed_version \
 			--arg version_available $remote_version \
@@ -274,8 +274,8 @@ list_charts_deployed() {
 						break
 					fi
 
-					local remote_image_referenceened="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
-					local remote_version="$(helm --namespace $namespace show chart $remote_image_referenceened | grep appVersion | sed 's|.*: ||')"
+					local remote_image_reference="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
+					local remote_version="$(helm --namespace $namespace show chart $remote_image_reference | grep appVersion | sed 's|.*: ||')"
 
 					# # Debug comment/uncomment
 					# echo "installed_name         $installed_name"
@@ -284,13 +284,13 @@ list_charts_deployed() {
 					# echo "remote_image           $remote_image"
 					# echo "configured_repo_url    $configured_repo_url"
 					# echo "configured_repo_name   $configured_repo_name"
-					# echo "remote_image_referenceened $remote_image_referenceened"
+					# echo "remote_image_reference $remote_image_reference"
 					# echo "remote_version         $remote_version"
 
 					if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-						json_chart $namespace $installed_name $remote_image_referenceened $remote_image $installed_version $remote_version "false"
+						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "false"
 					else
-						json_chart $namespace $installed_name $remote_image_referenceened $remote_image $installed_version $remote_version "true"
+						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "true"
 					fi
 				done
 
@@ -396,8 +396,11 @@ update_charts() {
 
 	list_charts_deployed > /dev/null
 
-	# match_charts_values
-	
+
+	list_charts_deployed > $dir_tmp/chart_list_before.json
+	local chart_list_before="$(cat $dir_tmp/chart_list_before.json)"
+
+
 	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
 	for chart in $uptodate_charts; do
 
@@ -406,10 +409,25 @@ update_charts() {
 
 		log_info "updating '$chart_name'"
 
-	# echo $chart_name
-		helm upgrade --reuse-values $chart_name $chart_reference
+		helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
+
+
+		local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
+		if [ "$(echo $chart_status)" = "deployed" ]; then
+			log_info "Update of '$chart_name' success (status: $chart_status)"
+		else
+			log_error "Update of '$chart_name' failed (status: $chart_status)"
+		fi
 
 	done
+
+
+	list_charts_deployed > $dir_tmp/chart_list_after.json
+	local chart_list_after="$(cat $dir_tmp/chart_list_after.json)"
+
+	comm $chart_list_before $chart_list_after
+
+
 
 }
 
