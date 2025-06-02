@@ -140,39 +140,43 @@ fi
 
 
 
-# Ensure the anonymous registry API rate limit is ok
-# Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
-# Usage: rate_registry
-rate_registry() {
+# Simple hook to call before any registry usage
+# Usage: hook_rate_registry
+hook_rate_registry() {
+	# Ensure the anonymous registry API rate limit is ok
+	# Docker Hub official documentation: https://docs.docker.com/docker-hub/usage/pulls/#authentication
+	# Usage: rate_registry
+	rate_registry() {
 
-	local token="$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
+		local token="$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)"
 
-	local file_response_tmp="$dir_tmp/ratelimit"
-	curl -s --head -H "Authorization: Bearer $token" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest -o $file_response_tmp
+		local file_response_tmp="$dir_tmp/ratelimit"
+		curl -s --head -H "Authorization: Bearer $token" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest -o $file_response_tmp
 
-	local rate_limit="$(cat $file_response_tmp | grep 'ratelimit-limit' | sed 's|.*: ||' | sed 's|;.*||')"
-	local rate_remaining="$(cat $file_response_tmp | grep 'ratelimit-remaining' | sed 's|.*: ||' | sed 's|;.*||')"
-	local rate_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | sed 's|.*: \([0-9.]*\).*|\1|')"
+		local rate_limit="$(cat $file_response_tmp | grep 'ratelimit-limit' | sed 's|.*: ||' | sed 's|;.*||')"
+		local rate_remaining="$(cat $file_response_tmp | grep 'ratelimit-remaining' | sed 's|.*: ||' | sed 's|;.*||')"
+		local rate_source="$(cat $file_response_tmp | grep 'docker-ratelimit-source' | sed 's|.*: \([0-9.]*\).*|\1|')"
 
-	# echo "token		         $token"
-	# echo "response             $response"
-	# echo "rate_limit           $rate_limit"
-	# echo "rate_remaining       $rate_remaining"
-	# echo "rate_source          $rate_source"
+		# echo "token		         $token"
+		# echo "response             $response"
+		# echo "rate_limit           $rate_limit"
+		# echo "rate_remaining       $rate_remaining"
+		# echo "rate_source          $rate_source"
 
-	local rate_percent="$(echo "scale=2; $rate_remaining*100/$rate_limit" | bc | cut -d . -f 1)"
-	echo "$rate_percent;$rate_limit;$rate_remaining;$rate_source"
+		local rate_percent="$(echo "scale=2; $rate_remaining*100/$rate_limit" | bc | cut -d . -f 1)"
+		echo "$rate_percent;$rate_limit;$rate_remaining;$rate_source"
+	}
+	# Cancel script if current available rate is under 90% to avoid beeing blocked for next hours
+	rate_registry=$(rate_registry)
+	rate_percent=$(echo $rate_registry | cut -d ';' -f 1)
+	rate_limit=$(echo $rate_registry | cut -d ';' -f 2)
+	rate_remaining=$(echo $rate_registry | cut -d ';' -f 3)
+	rate_source=$(echo $rate_registry | cut -d ';' -f 4)
+	if [ $rate_percent -le 80 ]; then
+		log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting."
+		exit
+	fi
 }
-# Cancel script if current available rate is under 90% to avoid beeing blocked for next hours
-rate_registry=$(rate_registry)
-rate_percent=$(echo $rate_registry | cut -d ';' -f 1)
-rate_limit=$(echo $rate_registry | cut -d ';' -f 2)
-rate_remaining=$(echo $rate_registry | cut -d ';' -f 3)
-rate_source=$(echo $rate_registry | cut -d ';' -f 4)
-if [ $rate_percent -le 80 ]; then
-	log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting."
-	exit
-fi
 
 
 
@@ -391,42 +395,53 @@ get_chart_reference() {
 
 
 # Update all Helm Charts
-# Usage: update_charts
+# Usage:
+# - update_charts
+# - update_charts -y
 update_charts() {
 
-	list_charts_deployed > /dev/null
+	# Permit to use -y argument
+	local confirmation=$1
+	read -p "Confirm update all Charts ?" confirmation
+
+	if [ "$(echo $confirmation)" = "yes" ]; then
+
+		list_charts_deployed > /dev/null
 
 
-	list_charts_deployed > $dir_tmp/chart_list_before.json
-	local chart_list_before="$(cat $dir_tmp/chart_list_before.json)"
+		list_charts_deployed > $dir_tmp/chart_list_before.json
+		local chart_list_before="$(cat $dir_tmp/chart_list_before.json)"
 
 
-	local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
-	for chart in $uptodate_charts; do
+		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
+		for chart in $uptodate_charts; do
 
-		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
-		local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
+			local chart_name="$(echo $chart | jq '.name' | tr -d \")"
+			local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
 
-		log_info "updating '$chart_name'"
+			log_info "updating '$chart_name'"
 
-		helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
-
-
-		local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
-		if [ "$(echo $chart_status)" = "deployed" ]; then
-			log_info "Update of '$chart_name' success (status: $chart_status)"
-		else
-			log_error "Update of '$chart_name' failed (status: $chart_status)"
-		fi
-
-	done
+			helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
 
 
-	list_charts_deployed > $dir_tmp/chart_list_after.json
-	local chart_list_after="$(cat $dir_tmp/chart_list_after.json)"
+			local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
+			if [ "$(echo $chart_status)" = "deployed" ]; then
+				log_info "update of '$chart_name' success (status: $chart_status)"
+			else
+				log_error "update of '$chart_name' failed (status: $chart_status)"
+			fi
 
-	comm $chart_list_before $chart_list_after
+		done
 
+
+		list_charts_deployed > $dir_tmp/chart_list_after.json
+		local chart_list_after="$(cat $dir_tmp/chart_list_after.json)"
+
+		comm $chart_list_before $chart_list_after
+	else
+		log_info "update aborted"
+
+	fi
 
 
 }
@@ -461,10 +476,18 @@ display_help() {
 
 # The options (except --help) must be called with root
 case "$1" in
-	-l|--list-deployment)   list_charts_deployed ;;
-	-u|--do-update)         update_charts ;;
-	-h|--help|help)         display_help ;;
-	# -z)                     placeholder ;;
+	-l|--list-deployment)
+							hook_rate_registry
+							list_charts_deployed ;;
+	-u|--do-update)
+							hook_rate_registry
+							if [ "$(echo $2)" = "-y" ]; then
+								update_charts $2
+							else 
+								updade_charts
+							fi ;;
+	-h|--help|help)			display_help ;;
+	# -z)					placeholder ;;
 	*)
 							if [ -z "$1" ]; then
 								display_help
