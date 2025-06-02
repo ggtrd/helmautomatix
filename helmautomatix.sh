@@ -114,6 +114,14 @@ log_info() {
 
 
 
+# Get logs
+# Usage: display_logs
+display_logs() {
+	cat $file_logs | less 
+}
+
+
+
 # Get user a confirmation that accepts differents answers and returns always the same value
 # Usage: sanitize_confirmation <yes|Yes|yEs|yeS|YEs|YeS|yES|YES|y|Y>
 sanitize_confirmation() {
@@ -389,7 +397,8 @@ display_help() {
 	&&	echo "" \
 	&&	echo "Options:" \
 	&&	echo " -l, --list-updates        list available Helm Charts updates." \
-	&&	echo " -u, --do-update           update Helm Charts (force with -y)." 
+	&&	echo " -u, --do-update           update Helm Charts (force with -y)." \
+	&&	echo "     --logs                display logs." 
 }
 
 
@@ -407,6 +416,7 @@ case "$1" in
 								update_charts
 							fi ;;
 	-h|--help|help)			display_help ;;
+	--logs)					display_logs ;;
 	# -z)					placeholder ;;
 	*)
 							if [ -z "$1" ]; then
