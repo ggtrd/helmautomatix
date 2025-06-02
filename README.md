@@ -21,8 +21,8 @@ Helmautomatix is POSIX compliant.
 ### Installing on the current user
 ```
 dir="/home/$USER/.config/helmautomatix" \
-file="$dir/helmautomatix.sh" \
-&& mkdir -p $dir" \
+&& file="$dir/helmautomatix.sh" \
+&& mkdir -p $dir \
 && curl https://raw.githubusercontent.com/ggtrd/helmautomatix/refs/heads/main/helmautomatix.sh -o $file \
 && chmod +x $file \
 && echo "alias helmautomatix='$file'" >> /home/$USER/.bashrc
