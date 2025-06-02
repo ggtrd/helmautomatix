@@ -418,12 +418,9 @@ update_charts() {
 	local confirmation="$(sanitize_confirmation $confirmation)"
 	if [ "$(echo $confirmation)" = "yes" ]; then
 
+		log_info "starting update"
+
 		list_charts_deployed > /dev/null
-
-
-		list_charts_deployed > $dir_tmp/chart_list_before.json
-		local chart_list_before="$(cat $dir_tmp/chart_list_before.json)"
-
 
 		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
 		for chart in $uptodate_charts; do
@@ -435,27 +432,19 @@ update_charts() {
 
 			helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
 
-
 			local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
 			if [ "$(echo $chart_status)" = "deployed" ]; then
 				log_info "update of '$chart_name' success (status: $chart_status)"
 			else
 				log_error "update of '$chart_name' failed (status: $chart_status)"
 			fi
-
 		done
 
+		log_info "end of updates"
 
-		list_charts_deployed > $dir_tmp/chart_list_after.json
-		local chart_list_after="$(cat $dir_tmp/chart_list_after.json)"
-
-		comm $chart_list_before $chart_list_after
 	else
 		log_info "update aborted"
-
 	fi
-
-
 }
 
 
