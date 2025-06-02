@@ -389,7 +389,7 @@ display_help() {
 	&&	echo "" \
 	&&	echo "Options:" \
 	&&	echo " -l, --list-updates        list available Helm Charts updates." \
-	&&	echo " -u, --do-update           update Helm Charts." 
+	&&	echo " -u, --do-update           update Helm Charts (force with -y)." 
 }
 
 
