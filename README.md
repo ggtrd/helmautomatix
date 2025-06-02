@@ -43,4 +43,4 @@ Update listed Charts from -l argument
 ```
 
 # License
-This project is licensed under the MIT License. See the [LICENSE](https://github.com/ggtrd/kontext/blob/main/LICENSE.md) f
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/ggtrd/helmautomatix/blob/main/LICENSE.md) file
