@@ -117,7 +117,7 @@ log_info() {
 # Get logs
 # Usage: display_logs
 display_logs() {
-	cat $file_logs | less 
+	cat $file_logs | less +G
 }
 
 
