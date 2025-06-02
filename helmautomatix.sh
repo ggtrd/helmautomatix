@@ -114,6 +114,16 @@ log_info() {
 
 
 
+# Get user a confirmation that accepts differents answers and returns always the same value
+# Usage: sanitize_confirmation <yes|Yes|yEs|yeS|YEs|YeS|yES|YES|y|Y>
+sanitize_confirmation() {
+	if [ "$1" = "yes" ] || [ "$1" = "Yes" ] || [ "$1" = "yEs" ] || [ "$1" = "yeS" ] || [ "$1" = "YEs" ] || [ "$1" = "YeS" ] || [ "$1" = "yES" ] || [ "$1" = "YES" ] || [ "$1" = "y" ] || [ "$1" = "Y" ] || [ "$1" = "-y" ]; then
+		echo "yes"
+	fi
+}
+
+
+
 # Delete /tmp/$0 directory created at begin
 # Usage: delete_tmp
 delete_tmp() {
@@ -402,8 +412,10 @@ update_charts() {
 
 	# Permit to use -y argument
 	local confirmation=$1
-	read -p "Confirm update all Charts ?" confirmation
-
+	if [ -z $confirmation ]; then
+		read -p "Confirm update all Charts ? " confirmation
+	fi
+	local confirmation="$(sanitize_confirmation $confirmation)"
 	if [ "$(echo $confirmation)" = "yes" ]; then
 
 		list_charts_deployed > /dev/null
@@ -480,11 +492,11 @@ case "$1" in
 							hook_rate_registry
 							list_charts_deployed ;;
 	-u|--do-update)
-							hook_rate_registry
+							# hook_rate_registry
 							if [ "$(echo $2)" = "-y" ]; then
 								update_charts $2
 							else 
-								updade_charts
+								update_charts
 							fi ;;
 	-h|--help|help)			display_help ;;
 	# -z)					placeholder ;;
