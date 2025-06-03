@@ -41,7 +41,7 @@ Update listed Charts from -l argument
 ### Filters configuration
 #### Ignore Helm repositories 
 Charts updates can be ignored by writing their repositories name the file `filters/ignored_helm_repositories`.
-*If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
+> *If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
 
 This file is a simple list:
 ```
