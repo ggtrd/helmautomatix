@@ -56,15 +56,16 @@ file_logs="$dir_log/$name.logs"
 
 file_deployments_json="$dir_deployments_now/deployments.json"
 
-
-
-
 # # Symoblic link to quickly browse the latest results
 # path_deployment_latest="$dir_deployments/latest"
 # rm -f $path_deployment_latest/
 # ln -sf "$dir_deployments_now/*" "$path_deployment_latest/"
 
-
+dir_filters="filters"
+mkdir -p $dir_filters
+chmod -R 770 $dir_filters
+file_filter_repo="$dir_filters/ignored_helm_repositories" # Simple list, 1 line = 1 ignored repository
+touch $file_filter_repo
 
 
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
@@ -140,6 +141,26 @@ delete_tmp() {
 
 
 
+# Get the current Kubernetes context
+# Usage: get_current_context
+get_current_context() {
+	local context="$(kubectl config current-context)"
+
+	log_info "connected to context '$context'"
+}
+
+
+
+# # List Helm ignored repositories
+# # Usage: get_filtered_helm_repositories
+# get_filtered_helm_repositories() {
+# 	for line in $(cat $file_filter_repo); do
+# 		echo $line
+# 	done
+# }
+
+
+
 # Stop script if missing dependency
 required_commands="jq yq helm kubectl curl"
 file_tmp_required_commands="$dir_tmp/required_commands"
@@ -209,6 +230,7 @@ json_chart() {
 	local installed_version=$5
 	local remote_version=$6
 	local uptodate=$7
+	local update_ignored=$8
 
 	local file_tmp_item="$dir_tmp/deployment.item.tmp"
 	local file_tmp_list="$dir_tmp/deployment.list.tmp"
@@ -216,13 +238,14 @@ json_chart() {
 
 	jq -n --argjson chart "[]" \
 		"$(jq -n \
-			--arg namespace $namespace \
 			--arg name $installed_name \
+			--arg namespace $namespace \
 			--arg reference $remote_image_reference \
 			--arg image $remote_image \
 			--arg version_installed $installed_version \
 			--arg version_available $remote_version \
 			--arg uptodate $uptodate \
+			--arg update_ignored $update_ignored \
 			'$ARGS.named')" \
 		'$ARGS.named' >$file_tmp_item
 
@@ -296,6 +319,13 @@ list_charts_deployed() {
 						break
 					fi
 
+					# Set chart as ignored if its repository is part of the filter file
+					if [ "$(cat $file_filter_repo | grep -w $configured_repo_name)" ]; then
+						local update_ignored='true'
+					else
+						local update_ignored='false'
+					fi
+
 					local remote_image_reference="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
 					local remote_version="$(helm --namespace $namespace show chart $remote_image_reference | grep appVersion | sed 's|.*: ||')"
 
@@ -308,11 +338,12 @@ list_charts_deployed() {
 					# echo "configured_repo_name   $configured_repo_name"
 					# echo "remote_image_reference $remote_image_reference"
 					# echo "remote_version         $remote_version"
+					# echo "update_ignored         $update_ignored"
 
 					if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "false"
+						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "false" $update_ignored
 					else
-						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "true"
+						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "true" $update_ignored
 					fi
 				done
 
@@ -407,9 +438,11 @@ display_help() {
 case "$1" in
 	-l|--list-deployment)
 							hook_rate_registry
+							get_current_context
 							list_charts_deployed ;;
 	-u|--do-update)
 							hook_rate_registry
+							get_current_context
 							if [ "$(echo $2)" = "-y" ]; then
 								update_charts $2
 							else 

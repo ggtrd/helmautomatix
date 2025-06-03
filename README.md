@@ -42,5 +42,20 @@ Update listed Charts from -l argument
 ./helmautomatix.sh -u
 ```
 
+### Filters configuration
+#### Helm repositories
+Helm Charts can be filtered in the update process by ignoring their repositories.
+
+To do so, just fill the file `filters/ignored_helm_repositories`.
+Create it if doesn't exist, or just launch a first time ./helmautomatix (it will create it).
+
+This file is a simple list:
+```
+repo1
+repo2
+repo3
+etc...
+```
+
 # License
 This project is licensed under the MIT License. See the [LICENSE](https://github.com/ggtrd/helmautomatix/blob/main/LICENSE.md) file
