@@ -14,10 +14,13 @@ Helmautomatix is POSIX compliant.
 
 ## Usage
 
+
 ### Using as a simple script
 ```
 ./helmautomatix.sh --help
 ```
+
+
 ### Installing on the current user
 ```
 dir="/home/$USER/.helmautomatix" \
@@ -27,6 +30,7 @@ dir="/home/$USER/.helmautomatix" \
 && chmod +x $file \
 && echo "alias helmautomatix='$file'" >> /home/$USER/.bashrc
 ```
+
 
 ### Main commands
 List local Charts in JSON format (get version, if updatable and their repository)
@@ -38,7 +42,8 @@ Update listed Charts from -l argument
 ./helmautomatix.sh -u
 ```
 
-### Filters configuration
+
+### Configuration
 #### Ignore Helm repositories 
 Charts updates can be ignored by writing their repositories name the file `filters/ignored_helm_repositories`.
 > *If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
