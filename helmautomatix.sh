@@ -393,7 +393,7 @@ update_charts() {
 # Help message
 # Usage: display_help
 display_help() {
-	echo "Usage: $0 [OPTION]..." \
+	echo "Usage: $name [OPTION]..." \
 	&&	echo "" \
 	&&	echo "Options:" \
 	&&	echo " -l, --list-updates        list available Helm Charts updates." \
@@ -422,7 +422,7 @@ case "$1" in
 							if [ -z "$1" ]; then
 								display_help
 							else
-								log_error "unknown option '$1', $0 --help"
+								log_error "unknown option '$1', $name --help"
 							fi
 esac
 

@@ -20,7 +20,7 @@ Helmautomatix is POSIX compliant.
 ```
 ### Installing on the current user
 ```
-dir="/home/$USER/.config/helmautomatix" \
+dir="/home/$USER/.helmautomatix" \
 && file="$dir/helmautomatix.sh" \
 && mkdir -p $dir \
 && curl https://raw.githubusercontent.com/ggtrd/helmautomatix/refs/heads/main/helmautomatix.sh -o $file \
