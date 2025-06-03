@@ -1,6 +1,6 @@
 # Helmautomatix
 
-Easily update all Helm Charts over differents Kubernetes namespaces.
+Easily update all Helm Charts over Kubernetes namespaces.
 
 Requirements:
 - [kubectl](https://kubernetes.io/fr/docs/reference/kubectl/)
