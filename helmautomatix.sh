@@ -390,7 +390,7 @@ update_charts() {
 
 		list_charts_deployed > /dev/null
 
-		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false")')"
+		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false") | select(.update_ignored == "false")')"
 		if [ ! -z $uptodate_charts ]; then
 			for chart in $uptodate_charts; do
 
