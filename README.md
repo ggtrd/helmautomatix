@@ -29,10 +29,6 @@ dir="/home/$USER/.helmautomatix" \
 ```
 
 ### Main commands
-List all arguments
-```
-./helmautomatix.sh --help
-```
 List local Charts in JSON format (get version, if updatable and their repository)
 ```
 ./helmautomatix.sh -l
@@ -43,11 +39,9 @@ Update listed Charts from -l argument
 ```
 
 ### Filters configuration
-#### Helm repositories
-Helm Charts can be filtered in the update process by ignoring their repositories.
-
-To do so, just fill the file `filters/ignored_helm_repositories`.
-Create it if doesn't exist, or just launch a first time ./helmautomatix (it will create it).
+#### Ignore Helm repositories 
+Charts updates can be ignored by writing their repositories name the file `filters/ignored_helm_repositories`.
+*If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
 
 This file is a simple list:
 ```
@@ -57,7 +51,7 @@ repo3
 etc...
 ```
 
-Repositories written in this list must match with repositories listed with
+Repositories written in this list must match with repositories listed from this command:
 ```
 helm repo list
 ```
