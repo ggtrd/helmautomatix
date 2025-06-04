@@ -68,6 +68,7 @@ file_filter_repo="$dir_filters/ignored_helm_repositories" # Simple list, 1 line 
 touch $file_filter_repo
 
 
+
 # - Connect to Kubernetes cluster to be able to use kubectl and helm
 # - list all installed charts with their version
 # 	- for each installed chart, check if a new version exist on helm repository
@@ -390,8 +391,8 @@ update_charts() {
 
 		list_charts_deployed > /dev/null
 
-		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false") | select(.update_ignored == "false")')"
-		if [ ! -z $uptodate_charts ]; then
+		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false") | select(.update_ignored == "false")' )"
+		if [ ! -z "$(echo $uptodate_charts)" ]; then
 			for chart in $uptodate_charts; do
 
 				local chart_name="$(echo $chart | jq '.name' | tr -d \")"
@@ -460,14 +461,7 @@ case "$1" in
 esac
 
 
-
-# todo:
-# - mail notification for errors
-
-
-
 delete_tmp
-
 
 
 exit
