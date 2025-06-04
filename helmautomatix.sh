@@ -294,7 +294,7 @@ list_charts_deployed() {
 			# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 
 			if [ -z "$deployments" ]; then
-				log_info "no chart found on '$namespace'"
+				log_info "no chart found on namespace '$namespace'"
 			else 
 				for deployment in $deployments; do
 
