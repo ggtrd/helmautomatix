@@ -221,15 +221,15 @@ hook_rate_registry() {
 
 
 # Create a JSON array containing instaleld Helm Charts informations
-# Usage: json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "true/false"
+# Usage: json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "true/false"
 json_chart() {
 
 	local namespace=$1
 	local installed_name=$2
-	local remote_image_reference=$3
-	local remote_image=$4
+	local remote_chart_reference=$3
+	local remote_chart=$4
 	local installed_version=$5
-	local remote_version=$6
+	local remote_chart_version=$6
 	local uptodate=$7
 	local update_ignored=$8
 
@@ -241,10 +241,10 @@ json_chart() {
 		"$(jq -n \
 			--arg name $installed_name \
 			--arg namespace $namespace \
-			--arg reference $remote_image_reference \
-			--arg image $remote_image \
+			--arg reference $remote_chart_reference \
+			--arg image $remote_chart \
 			--arg version_installed $installed_version \
-			--arg version_available $remote_version \
+			--arg version_available $remote_chart_version \
 			--arg uptodate $uptodate \
 			--arg update_ignored $update_ignored \
 			'$ARGS.named')" \
@@ -304,11 +304,11 @@ list_charts_deployed() {
 					local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
 					local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
 
-					local remote_image="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
+					local remote_chart="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
 
 					# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
-					# The purpose is to match repo name and url because the name can be differents (for example name = "cosmotech" and url contains "cosmo-tech")
-					local configured_repo_url="$(echo $remote_image | cut -d '/' -f 2)"
+					# The purpose is to match repo name and url because the name can be differents
+					local configured_repo_url="$(echo $remote_chart | cut -d '/' -f 2)"
 
 					# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
 					local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
@@ -327,24 +327,24 @@ list_charts_deployed() {
 						local update_ignored='false'
 					fi
 
-					local remote_image_reference="$(echo $configured_repo_name/$(echo $remote_image | sed 's|.*/\(.*\):.*|\1|'))"
-					local remote_version="$(helm --namespace $namespace show chart $remote_image_reference | grep appVersion | sed 's|.*: ||')"
+					local remote_chart_reference="$(echo $configured_repo_name/$(echo $remote_chart | sed 's|.*/\(.*\):.*|\1|'))"
+					local remote_chart_version="$(helm --namespace $namespace show chart $remote_chart_reference | grep appVersion | sed 's|.*: ||')"
 
 					# # Debug comment/uncomment
 					# echo "installed_name         $installed_name"
 					# echo "installed_version      $installed_version"
 					# echo "installed_status       $installed_status"
-					# echo "remote_image           $remote_image"
+					# echo "remote_chart           $remote_chart"
 					# echo "configured_repo_url    $configured_repo_url"
 					# echo "configured_repo_name   $configured_repo_name"
-					# echo "remote_image_reference $remote_image_reference"
-					# echo "remote_version         $remote_version"
+					# echo "remote_chart_reference $remote_chart_reference"
+					# echo "remote_chart_version         $remote_chart_version"
 					# echo "update_ignored         $update_ignored"
 
-					if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
-						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "false" $update_ignored
+					if [ "$(echo "$installed_version")" != "$(echo "$remote_chart_version")" ]; then
+						json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "false" $update_ignored
 					else
-						json_chart $namespace $installed_name $remote_image_reference $remote_image $installed_version $remote_version "true" $update_ignored
+						json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "true" $update_ignored
 					fi
 				done
 
