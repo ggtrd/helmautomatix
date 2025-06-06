@@ -374,13 +374,15 @@ get_chart_reference() {
 
 
 # Update all Helm Charts
-# Usage:
+# Usage: 
 # - update_charts
 # - update_charts -y
 update_charts() {
 
 	# Permit to use -y argument
+	# local confirmation="$(echo $HELMAUTOMATIX_UPDATE_CONFIRMATION)"
 	local confirmation=$1
+	echo "confirmation $confirmation"
 	if [ -z "$(echo $confirmation)" ]; then
 		read -p "Confirm update all Charts ? " confirmation
 	fi
@@ -391,27 +393,34 @@ update_charts() {
 
 		list_charts_deployed > /dev/null
 
+
 		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false") | select(.update_ignored == "false")' )"
-		if [ ! -z "$(echo $uptodate_charts)" ]; then
-			for chart in $uptodate_charts; do
 
-				local chart_name="$(echo $chart | jq '.name' | tr -d \")"
-				local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
-
-				log_info "updating '$chart_name'"
-
-				helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
-
-				local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
-				if [ "$(echo $chart_status)" = "deployed" ]; then
-					log_info "update of '$chart_name' success (status: $chart_status)"
-				else
-					log_error "update of '$chart_name' failed (status: $chart_status)"
-				fi
-			done
-		else
-			log_info "no update found"
+		# Hook to define a scoped namespace if used from options
+		if [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
+			local uptodate_charts="$(echo $uptodate_charts | jq -c 'select(.namespace == "'$HELMAUTOMATIX_NAMESPACE'")')"
 		fi
+
+		# if [ ! -z "$(echo $uptodate_charts)" ]; then
+		# 	for chart in $uptodate_charts; do
+
+		# 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
+		# 		local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
+
+		# 		log_info "updating '$chart_name'"
+
+		# 		helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
+
+		# 		local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
+		# 		if [ "$(echo $chart_status)" = "deployed" ]; then
+		# 			log_info "update of '$chart_name' success (status: $chart_status)"
+		# 		else
+		# 			log_error "update of '$chart_name' failed (status: $chart_status)"
+		# 		fi
+		# 	done
+		# else
+		# 	log_info "no update found"
+		# fi
 
 		log_info "end of updates"
 
@@ -425,23 +434,24 @@ update_charts() {
 # Help message
 # Usage: display_help
 display_help() {
-	if [ -z "$(echo $HELP_DIPLAYED)" ]; then
+	if [ -z "$(echo $HELMAUTOMATIX_HELP_DIPLAYED)" ]; then
 		echo "Usage: $name [OPTION]..." \
 		&&	echo "" \
 		&&	echo "Options:" \
-		&&	echo " -h, --help            display help message." \
-		&&	echo " -j, --logs            display logs." \
-		&&	echo " -l, --list-updates    list available Helm Charts updates." \
-		&&	echo " -u, --do-updates      update Helm Charts (force with -y)."
+		&&	echo " -h, --help            display help message" \
+		&&	echo " -j, --logs            display logs" \
+		&&	echo " -n, --namespace       namespace scope for this request" \
+		&&	echo " -l, --list-updates    list available Helm Charts updates" \
+		&&	echo " -u, --do-updates      update Helm Charts (force with -y)"
 	fi
 
 	# Just a tamper to avoid having the help message displayed multiples times
-	export HELP_DIPLAYED="true"
+	export HELMAUTOMATIX_HELP_DIPLAYED="true"
 }
 
 
 
-options=$(getopt -u -l "list-updates,do-update::,help,logs" -o "lu::hj" -a -- "$@")
+options=$(getopt -a -o "l,u::,n:,h,j" -l "list-updates,do-update::,namespace:,help,logs" -- "$@")
 eval set -- "$options"
 while true; do
 	case "$1" in
@@ -451,18 +461,31 @@ while true; do
 			list_charts_deployed
 			;;
 		-u|--do-update)
-			# echo "options $options"
-			# echo "OPTARG $OPTARG"
-			# echo "optstring $OPTSTRING"
-			# echo "2 $3"
 			hook_rate_registry
 			get_current_context
-			# update_charts $options
-			if [ $3 ]; then
-				update_charts $3
-			else
-				update_charts
+			# export HELMAUTOMATIX_UPDATE_CONFIRMATION="$2"
+			# echo "HELMAUTOMATIX_UPDATE_CONFIRMATION $HELMAUTOMATIX_UPDATE_CONFIRMATION"
+
+			# # echo $options
+			# update_charts
+			if [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
+				if [ "$(echo $2)" = "y" ]; then
+					update_charts $2
+				else
+					update_charts
+				fi
+			else 
+				log_error "namespace missing, use -n <namespace> or -n all"
 			fi
+			# shift 2
+			;;
+		-n|--namespace) 
+			export HELMAUTOMATIX_NAMESPACE="$2"
+			echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
+			# shift 2
+
+			# echo $options
+			# echo $HELMAUTOMATIX_NAMESPACE
 			;;
 		-h|--help) 
 			display_help
@@ -486,6 +509,7 @@ fi
 
 
 delete_tmp
+
 
 
 exit
