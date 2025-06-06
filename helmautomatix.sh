@@ -163,7 +163,7 @@ get_current_context() {
 
 
 # Stop script if missing dependency
-required_commands="jq yq helm kubectl curl"
+required_commands="jq yq helm kubectl curl getopt"
 file_tmp_required_commands="$dir_tmp/required_commands"
 for command in $required_commands; do
 	if [ -z "$(which $command)" ]; then
@@ -293,7 +293,7 @@ list_charts_deployed() {
 			local deployments="$(helm --namespace $namespace list --deployed -o json | jq -c '.[] | {name,app_version}')"
 			# deployments="$(helm list --deployed --all-namespaces -o json | jq -c '.[] | {name,app_version}')"
 
-			if [ -z "$deployments" ]; then
+			if [ -z "$(echo $deployments)" ]; then
 				log_info "no chart found on namespace '$namespace'"
 			else 
 				for deployment in $deployments; do
@@ -313,7 +313,7 @@ list_charts_deployed() {
 					# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
 					local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
 
-					if [ -z $configured_repo_name ]; then
+					if [ -z "$(echo $configured_repo_name)" ]; then
 						log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
 						log_info "look for the chart repository:   helm --namespace $namespace get metadata $installed_name"
 						log_info "ensure the repository is listed: helm repo list"
@@ -338,7 +338,7 @@ list_charts_deployed() {
 					# echo "configured_repo_url    $configured_repo_url"
 					# echo "configured_repo_name   $configured_repo_name"
 					# echo "remote_chart_reference $remote_chart_reference"
-					# echo "remote_chart_version         $remote_chart_version"
+					# echo "remote_chart_version   $remote_chart_version"
 					# echo "update_ignored         $update_ignored"
 
 					if [ "$(echo "$installed_version")" != "$(echo "$remote_chart_version")" ]; then
@@ -381,7 +381,7 @@ update_charts() {
 
 	# Permit to use -y argument
 	local confirmation=$1
-	if [ -z $confirmation ]; then
+	if [ -z "$(echo $confirmation)" ]; then
 		read -p "Confirm update all Charts ? " confirmation
 	fi
 	local confirmation="$(sanitize_confirmation $confirmation)"
@@ -425,40 +425,64 @@ update_charts() {
 # Help message
 # Usage: display_help
 display_help() {
-	echo "Usage: $name [OPTION]..." \
-	&&	echo "" \
-	&&	echo "Options:" \
-	&&	echo " -l, --list-updates        list available Helm Charts updates." \
-	&&	echo " -u, --do-update           update Helm Charts (force with -y)." \
-	&&	echo "     --logs                display logs." 
+	if [ -z "$(echo $HELP_DIPLAYED)" ]; then
+		echo "Usage: $name [OPTION]..." \
+		&&	echo "" \
+		&&	echo "Options:" \
+		&&	echo " -h, --help            display help message." \
+		&&	echo " -j, --logs            display logs." \
+		&&	echo " -l, --list-updates    list available Helm Charts updates." \
+		&&	echo " -u, --do-updates      update Helm Charts (force with -y)."
+	fi
+
+	# Just a tamper to avoid having the help message displayed multiples times
+	export HELP_DIPLAYED="true"
 }
 
 
 
-# The options (except --help) must be called with root
-case "$1" in
-	-l|--list-deployment)
-							hook_rate_registry
-							get_current_context
-							list_charts_deployed ;;
-	-u|--do-update)
-							hook_rate_registry
-							get_current_context
-							if [ "$(echo $2)" = "-y" ]; then
-								update_charts $2
-							else 
-								update_charts
-							fi ;;
-	-h|--help|help)			display_help ;;
-	--logs)					display_logs ;;
-	# -z)					placeholder ;;
-	*)
-							if [ -z "$1" ]; then
-								display_help
-							else
-								log_error "unknown option '$1', $name --help"
-							fi
-esac
+options=$(getopt -u -l "list-updates,do-update::,help,logs" -o "lu::hj" -a -- "$@")
+eval set -- "$options"
+while true; do
+	case "$1" in
+		-l|--list-updates) 
+			hook_rate_registry
+			get_current_context
+			list_charts_deployed
+			;;
+		-u|--do-update)
+			# echo "options $options"
+			# echo "OPTARG $OPTARG"
+			# echo "optstring $OPTSTRING"
+			# echo "2 $3"
+			hook_rate_registry
+			get_current_context
+			# update_charts $options
+			if [ $3 ]; then
+				update_charts $3
+			else
+				update_charts
+			fi
+			;;
+		-h|--help) 
+			display_help
+			;;	
+		-j|--logs) 
+			display_logs
+			;;	
+		--)
+			shift
+			break;;
+	esac
+	shift
+done
+
+
+
+if [ -z "$1" ]; then
+	display_help
+fi
+ 
 
 
 delete_tmp
