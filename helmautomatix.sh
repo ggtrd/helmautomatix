@@ -380,8 +380,8 @@ get_chart_reference() {
 update_charts() {
 
 	# Permit to use -y argument
-	# local confirmation="$(echo $HELMAUTOMATIX_UPDATE_CONFIRMATION)"
-	local confirmation=$1
+	local confirmation="$(echo $HELMAUTOMATIX_UPDATE_CONFIRMATION)"
+	# local confirmation=$1
 	echo "confirmation $confirmation"
 	if [ -z "$(echo $confirmation)" ]; then
 		read -p "Confirm update all Charts ? " confirmation
@@ -397,8 +397,13 @@ update_charts() {
 		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false") | select(.update_ignored == "false")' )"
 
 		# Hook to define a scoped namespace if used from options
-		if [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
+		if [ "$(echo $HELMAUTOMATIX_NAMESPACE)" = "all" ]; then
+			local uptodate_charts="$(echo $uptodate_charts)"
+		elif [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
 			local uptodate_charts="$(echo $uptodate_charts | jq -c 'select(.namespace == "'$HELMAUTOMATIX_NAMESPACE'")')"
+		else
+			local uptodate_charts="null"
+			log_error "namespace missing, use -n <namespace> or -n all"
 		fi
 
 		# if [ ! -z "$(echo $uptodate_charts)" ]; then
@@ -449,7 +454,9 @@ display_help() {
 	export HELMAUTOMATIX_HELP_DIPLAYED="true"
 }
 
-
+if [ -z "$1" ]; then
+	display_help
+fi
 
 options=$(getopt -a -o "l,u::,n:,h,j" -l "list-updates,do-update::,namespace:,help,logs" -- "$@")
 eval set -- "$options"
@@ -468,21 +475,39 @@ while true; do
 
 			# # echo $options
 			# update_charts
-			if [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
-				if [ "$(echo $2)" = "y" ]; then
-					update_charts $2
-				else
-					update_charts
-				fi
-			else 
-				log_error "namespace missing, use -n <namespace> or -n all"
-			fi
-			# shift 2
+			
+			# if [ "$(echo $2)" = "y" ]; then
+			# 	update_charts $2
+			# else
+			# 	update_charts
+			# fi
+
+			export HELMAUTOMATIX_UPDATE_CONFIRMATION="$2"
+			echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
+
+			echo "1 $1"
+			echo "2 $2"
+			echo "3 $3"
+			echo "4 $4"
+			echo "5 $5"
+			echo "options $options"
+			update_charts
+
+			# shift 
 			;;
 		-n|--namespace) 
+
+		
+			echo "1 $1"
+			echo "2 $2"
+			echo "3 $3"
+			echo "4 $4"
+			echo "5 $5"
+			echo "options $options"
+			
 			export HELMAUTOMATIX_NAMESPACE="$2"
 			echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
-			# shift 2
+			# shift 
 
 			# echo $options
 			# echo $HELMAUTOMATIX_NAMESPACE
@@ -502,9 +527,7 @@ done
 
 
 
-if [ -z "$1" ]; then
-	display_help
-fi
+
  
 
 

@@ -33,13 +33,19 @@ dir="/home/$USER/.helmautomatix" \
 
 
 ### Main commands
+>Note: options requires no space between the option and the argument 
+List local Charts in JSON format (get version, if updatable and their repository)
+```
+./helmautomatix.sh -nall/<namespace>
+```
 List local Charts in JSON format (get version, if updatable and their repository)
 ```
 ./helmautomatix.sh -l
 ```
-Update listed Charts from -l argument
+Update listed Charts from -l argument ('y' will pre-approve)
 ```
 ./helmautomatix.sh -u
+./helmautomatix.sh -uy
 ```
 
 
