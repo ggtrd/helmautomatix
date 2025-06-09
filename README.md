@@ -33,7 +33,8 @@ dir="/home/$USER/.helmautomatix" \
 
 
 ### Main commands
->Note: options requires no space between the option and the argument 
+>*Note: options requires no space between the option and the argument*
+
 List local Charts in JSON format (get version, if updatable and their repository)
 ```
 ./helmautomatix.sh -l
@@ -53,7 +54,7 @@ Update Charts for a given namespace ('y' will pre-approve)
 ### Configuration
 #### Ignore Helm repositories 
 Charts updates can be ignored by writing their repositories name the file `filters/ignored_helm_repositories`.
-> *If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
+>*If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
 
 This file is a simple list:
 ```
