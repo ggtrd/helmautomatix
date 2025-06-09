@@ -379,10 +379,16 @@ get_chart_reference() {
 # - update_charts -y
 update_charts() {
 
+	echo $HELMAUTOMATIX_NAMESPACE
+	if [ -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
+		log_error "namespace missing, use -n<namespace> or -nall"
+		exit
+	fi
+
 	# Permit to use -y argument
 	local confirmation="$(echo $HELMAUTOMATIX_UPDATE_CONFIRMATION)"
 	# local confirmation=$1
-	echo "confirmation $confirmation"
+	# echo "confirmation $confirmation"
 	if [ -z "$(echo $confirmation)" ]; then
 		read -p "Confirm update all Charts ? " confirmation
 	fi
@@ -401,9 +407,9 @@ update_charts() {
 			local uptodate_charts="$(echo $uptodate_charts)"
 		elif [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
 			local uptodate_charts="$(echo $uptodate_charts | jq -c 'select(.namespace == "'$HELMAUTOMATIX_NAMESPACE'")')"
-		else
-			local uptodate_charts="null"
-			log_error "namespace missing, use -n <namespace> or -n all"
+		# else
+		# 	local uptodate_charts="null"
+		# 	log_error "namespace missing, use -n <namespace> or -n all"
 		fi
 
 		# if [ ! -z "$(echo $uptodate_charts)" ]; then
@@ -483,14 +489,14 @@ while true; do
 			# fi
 
 			export HELMAUTOMATIX_UPDATE_CONFIRMATION="$2"
-			echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
+			# echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
 
-			echo "1 $1"
-			echo "2 $2"
-			echo "3 $3"
-			echo "4 $4"
-			echo "5 $5"
-			echo "options $options"
+			# echo "1 $1"
+			# echo "2 $2"
+			# echo "3 $3"
+			# echo "4 $4"
+			# echo "5 $5"
+			# echo "options $options"
 			update_charts
 
 			# shift 
@@ -498,15 +504,15 @@ while true; do
 		-n|--namespace) 
 
 		
-			echo "1 $1"
-			echo "2 $2"
-			echo "3 $3"
-			echo "4 $4"
-			echo "5 $5"
-			echo "options $options"
+			# echo "1 $1"
+			# echo "2 $2"
+			# echo "3 $3"
+			# echo "4 $4"
+			# echo "5 $5"
+			# echo "options $options"
 			
 			export HELMAUTOMATIX_NAMESPACE="$2"
-			echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
+			# echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
 			# shift 
 
 			# echo $options
