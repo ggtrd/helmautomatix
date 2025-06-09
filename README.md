@@ -36,16 +36,17 @@ dir="/home/$USER/.helmautomatix" \
 >Note: options requires no space between the option and the argument 
 List local Charts in JSON format (get version, if updatable and their repository)
 ```
-./helmautomatix.sh -nall/<namespace>
-```
-List local Charts in JSON format (get version, if updatable and their repository)
-```
 ./helmautomatix.sh -l
 ```
-Update listed Charts from -l argument ('y' will pre-approve)
+Update Charts for all namespaces ('y' will pre-approve)
 ```
-./helmautomatix.sh -u
-./helmautomatix.sh -uy
+./helmautomatix.sh -nall -u
+./helmautomatix.sh -nall -uy
+```
+Update Charts for a given namespace ('y' will pre-approve)
+```
+./helmautomatix.sh -nnamespace -u
+./helmautomatix.sh -nnamespace -uy
 ```
 
 
