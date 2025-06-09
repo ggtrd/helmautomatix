@@ -56,6 +56,8 @@ file_logs="$dir_log/$name.logs"
 
 file_deployments_json="$dir_deployments_now/deployments.json"
 
+file_deployments_rollback="deployments-rollbackable"
+
 # # Symoblic link to quickly browse the latest results
 # path_deployment_latest="$dir_deployments/latest"
 # rm -f $path_deployment_latest/
@@ -212,8 +214,18 @@ hook_rate_registry() {
 	rate_limit=$(echo $rate_registry | cut -d ';' -f 2)
 	rate_remaining=$(echo $rate_registry | cut -d ';' -f 3)
 	rate_source=$(echo $rate_registry | cut -d ';' -f 4)
-	if [ $rate_percent -le 80 ]; then
+	if [ $rate_percent -le 60 ]; then
 		log_error "current available rate is $rate_percent% ($rate_remaining/$rate_limit) for $rate_source, aborting."
+		exit
+	fi
+}
+
+
+
+# Simple hook to call when need a namespace
+hook_namespace() {
+	if [ -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
+		log_error "namespace missing, use -n<namespace> or -nall"
 		exit
 	fi
 }
@@ -379,16 +391,10 @@ get_chart_reference() {
 # - update_charts -y
 update_charts() {
 
-	echo $HELMAUTOMATIX_NAMESPACE
-	if [ -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
-		log_error "namespace missing, use -n<namespace> or -nall"
-		exit
-	fi
+	hook_namespace
 
 	# Permit to use -y argument
 	local confirmation="$(echo $HELMAUTOMATIX_UPDATE_CONFIRMATION)"
-	# local confirmation=$1
-	# echo "confirmation $confirmation"
 	if [ -z "$(echo $confirmation)" ]; then
 		read -p "Confirm update all Charts ? " confirmation
 	fi
@@ -397,8 +403,7 @@ update_charts() {
 
 		log_info "starting update"
 
-		list_charts_deployed > /dev/null
-
+		list_charts_deployed
 
 		local uptodate_charts="$(cat $file_deployments_json | jq -c '.charts[] | select(.uptodate == "false") | select(.update_ignored == "false")' )"
 
@@ -407,38 +412,76 @@ update_charts() {
 			local uptodate_charts="$(echo $uptodate_charts)"
 		elif [ ! -z "$(echo $HELMAUTOMATIX_NAMESPACE)" ]; then
 			local uptodate_charts="$(echo $uptodate_charts | jq -c 'select(.namespace == "'$HELMAUTOMATIX_NAMESPACE'")')"
-		# else
-		# 	local uptodate_charts="null"
-		# 	log_error "namespace missing, use -n <namespace> or -n all"
 		fi
 
-		# if [ ! -z "$(echo $uptodate_charts)" ]; then
-		# 	for chart in $uptodate_charts; do
+		if [ ! -z "$(echo $uptodate_charts)" ]; then
+			for chart in $uptodate_charts; do
 
-		# 		local chart_name="$(echo $chart | jq '.name' | tr -d \")"
-		# 		local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
+				local chart_name="$(echo $chart | jq '.name' | tr -d \")"
+				local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
 
-		# 		log_info "updating '$chart_name'"
+				log_info "updating '$chart_name'"
 
-		# 		helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
+				helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
 
-		# 		local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
-		# 		if [ "$(echo $chart_status)" = "deployed" ]; then
-		# 			log_info "update of '$chart_name' success (status: $chart_status)"
-		# 		else
-		# 			log_error "update of '$chart_name' failed (status: $chart_status)"
-		# 		fi
-		# 	done
-		# else
-		# 	log_info "no update found"
-		# fi
+				local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
+				if [ "$(echo $chart_status)" = "deployed" ]; then
+					log_info "update of '$chart_name' success (status: $chart_status)"
+				else
+					log_error "update of '$chart_name' failed (status: $chart_status)"
+				fi
+			done
+		else
+			log_info "no update found"
+		fi
 
 		log_info "end of updates"
+
+		# # Creating a symlink to the latest deployments list to be able to rollback them with the dedidcated function
+		# rm -f $file_deployments_rollback
+		# ln -s $file_deployments_json $file_deployments_rollback
+		# if [ -f "$file_deployments_rollback" ]; then
+		# 	log_info "rollbackable deployments noted"
+		# fi
 
 	else
 		log_info "update aborted"
 	fi
 }
+
+
+
+# # Rollback updated Helm Charts to their original version
+# # Usage: rollback_charts
+# rollback_charts() {
+
+# 	hook_namespace
+
+# 	# Permit to use -y argument
+# 	local confirmation="$(echo $HELMAUTOMATIX_UPDATE_CONFIRMATION)"
+# 	if [ -z "$(echo $confirmation)" ]; then
+# 		read -p "Confirm rollback all updated Charts ? " confirmation
+# 	fi
+# 	local confirmation="$(sanitize_confirmation $confirmation)"
+# 	if [ "$(echo $confirmation)" = "yes" ]; then
+
+# 		log_info "starting rollback"
+
+# 		list_charts_deployed
+# 		local current_charts="$(cat $file_deployments_json)"
+# 		local latest_updated_charts="$(cat $file_deployments_rollback)"
+
+
+
+# 		# jq --argfile a $file_deployments_json --argfile b $file_deployments_rollback -n '($a | (.. | arrays) |= sort) as $a | ($b | (.. | arrays) |= sort) as $b | $a == $b'
+
+
+# 		# diff <(jq 'keys' $file_deployments_json) <(jq 'keys' $file_deployments_rollback)
+
+# 	else
+# 		log_info "rollback aborted"
+# 	fi
+# }
 
 
 
@@ -460,9 +503,13 @@ display_help() {
 	export HELMAUTOMATIX_HELP_DIPLAYED="true"
 }
 
+
+
 if [ -z "$1" ]; then
 	display_help
 fi
+
+
 
 options=$(getopt -a -o "l,u::,n:,h,j" -l "list-updates,do-update::,namespace:,help,logs" -- "$@")
 eval set -- "$options"
@@ -476,47 +523,17 @@ while true; do
 		-u|--do-update)
 			hook_rate_registry
 			get_current_context
-			# export HELMAUTOMATIX_UPDATE_CONFIRMATION="$2"
-			# echo "HELMAUTOMATIX_UPDATE_CONFIRMATION $HELMAUTOMATIX_UPDATE_CONFIRMATION"
-
-			# # echo $options
-			# update_charts
-			
-			# if [ "$(echo $2)" = "y" ]; then
-			# 	update_charts $2
-			# else
-			# 	update_charts
-			# fi
-
 			export HELMAUTOMATIX_UPDATE_CONFIRMATION="$2"
-			# echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
-
-			# echo "1 $1"
-			# echo "2 $2"
-			# echo "3 $3"
-			# echo "4 $4"
-			# echo "5 $5"
-			# echo "options $options"
 			update_charts
-
-			# shift 
 			;;
-		-n|--namespace) 
-
-		
-			# echo "1 $1"
-			# echo "2 $2"
-			# echo "3 $3"
-			# echo "4 $4"
-			# echo "5 $5"
-			# echo "options $options"
-			
+		# -r|--do-rollback)
+		# 	hook_rate_registry
+		# 	get_current_context
+		# 	export HELMAUTOMATIX_ROLLBACK_CONFIRMATION="$2"
+		# 	rollback_charts
+		# 	;;
+		-n|--namespace) 	
 			export HELMAUTOMATIX_NAMESPACE="$2"
-			# echo "HELMAUTOMATIX_NAMESPACE $HELMAUTOMATIX_NAMESPACE"
-			# shift 
-
-			# echo $options
-			# echo $HELMAUTOMATIX_NAMESPACE
 			;;
 		-h|--help) 
 			display_help
@@ -532,9 +549,6 @@ while true; do
 done
 
 
-
-
- 
 
 
 delete_tmp
