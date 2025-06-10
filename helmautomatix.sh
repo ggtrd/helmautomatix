@@ -26,7 +26,7 @@
 
 
 # Uncomment for debug
-# set -x
+set -x
 
 
 
@@ -315,10 +315,21 @@ list_charts_deployed() {
 					local installed_version="$(echo "$deployment" | jq -cr '.app_version')"
 					local installed_status="$(helm -n $namespace status $installed_name -o yaml | yq -r '.info.status')"
 
-					# Since charts can have multiples deployments, base the $remote_chart_name on 'app.kubernetes.io/part-of' if exists, or on 'app.kubernetes.io/name' if not
-					local chart_name_partof="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=="Deployment").metadata.labels."app.kubernetes.io/part-of"')"
+					# Since charts can have multiples deployments, base the $chart_name on 'app.kubernetes.io/part-of' if exists, or on 'app.kubernetes.io/name' if not
+					# local chart_name_partof="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=="Deployment").metadata.labels."app.kubernetes.io/part-of"')"
+					local chart_name_partof="$(helm -n $namespace get manifest $installed_name | yq -r '.metadata.labels."app.kubernetes.io/part-of"' | head -n 1)"
 					if [ "$(echo $chart_name_partof)" = "null" ]; then
-						local chart_name="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=="Deployment").metadata.labels."app.kubernetes.io/name"')"
+						# local chart_name="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=="Deployment").metadata.labels."app.kubernetes.io/name"')"
+						# local chart_name="$(helm -n $namespace get manifest $installed_name | yq -r '.metadata.labels."app.kubernetes.io/name"' | head -n 1)"
+
+						# Listing all kinds composing the chart to be sure getting the "app.kubernetes.io/name" value somewhere............. ^^'
+						local chart_kinds="$(helm -n $namespace get manifest $installed_name | yq -r '.kind')"
+						for chart_kind in $chart_kinds; do
+							local chart_name="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=='\"$chart_kind\"').metadata.labels."app.kubernetes.io/name"' | head -n 1)"
+							if [ ! -z $(echo $chart_name) ]; then
+								break
+							fi
+						done
 					else
 						local chart_name="$(echo $chart_name_partof | cut -d ' ' -f 1)"
 					fi
