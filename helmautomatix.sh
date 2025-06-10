@@ -26,7 +26,7 @@
 
 
 # Uncomment for debug
-set -x
+# set -x
 
 
 
