@@ -235,17 +235,16 @@ hook_namespace() {
 
 
 # Create a JSON array containing instaleld Helm Charts informations
-# Usage: json_chart $namespace $installed_name $remote_chart_reference $remote_chart_url $installed_version $remote_chart_version "true/false"
+# Usage: json_chart $namespace $installed_name $reference $remote_chart_url $installed_version $remote_version "true/false"
 json_chart() {
 
 	local namespace=$1
 	local installed_name=$2
-	local remote_chart_reference=$3
-	local remote_chart=$4
-	local installed_version=$5
-	local remote_chart_version=$6
-	local uptodate=$7
-	local update_ignored=$8
+	local reference=$3
+	local installed_version=$4
+	local remote_version=$5
+	local uptodate=$6
+	local update_ignored=$7
 
 	local file_tmp_item="$dir_tmp/deployment.item.tmp"
 	local file_tmp_list="$dir_tmp/deployment.list.tmp"
@@ -255,10 +254,9 @@ json_chart() {
 		"$(jq -n \
 			--arg name $installed_name \
 			--arg namespace $namespace \
-			--arg reference $remote_chart_reference \
-			--arg image $remote_chart_url \
+			--arg reference $reference \
 			--arg version_installed $installed_version \
-			--arg version_available $remote_chart_version \
+			--arg version_available $remote_version \
 			--arg uptodate $uptodate \
 			--arg update_ignored $update_ignored \
 			'$ARGS.named')" \
@@ -366,26 +364,24 @@ list_charts_deployed() {
 						# 	local update_ignored='false'
 						# fi
 
-						# local remote_chart_reference="$(echo $configured_repo_name/$(echo $remote_chart_url | sed 's|.*/\(.*\):.*|\1|'))"
-						local remote_chart_reference="$(echo $configured_repo_name/$chart_name)"
-						local remote_chart_version="$(helm -n $namespace show chart $remote_chart_reference | yq -r '.appVersion')"
+						# local reference="$(echo $configured_repo_name/$(echo $remote_chart_url | sed 's|.*/\(.*\):.*|\1|'))"
+						local reference="$(echo $configured_repo_name/$chart_name)"
+						local remote_version="$(helm -n $namespace show chart $reference | yq -r '.appVersion')"
 
 						# Debug comment/uncomment
 						echo "installed_name         $installed_name"
 						echo "installed_version      $installed_version"
 						echo "installed_status       $installed_status"
 						echo "chart_name             $chart_name"
-						# echo "configured_repo_url    $configured_repo_url"
 						echo "configured_repo_name   $configured_repo_name"
-						# echo "remote_chart_url       $remote_chart_url"
-						echo "remote_chart_reference $remote_chart_reference"
-						echo "remote_chart_version   $remote_chart_version"
+						echo "reference              $reference"
+						echo "remote_version         $remote_version"
 						echo "update_ignored         $update_ignored"
 
-						if [ "$(echo "$installed_version")" != "$(echo "$remote_chart_version")" ]; then
-							json_chart $namespace $installed_name $remote_chart_reference "remote_chart_url" $installed_version $remote_chart_version "false" $update_ignored
+						if [ "$(echo "$installed_version")" != "$(echo "$remote_version")" ]; then
+							json_chart $namespace $installed_name $reference $installed_version $remote_version "false" $update_ignored
 						else
-							json_chart $namespace $installed_name $remote_chart_reference "remote_chart_url" $installed_version $remote_chart_version "true" $update_ignored
+							json_chart $namespace $installed_name $reference $installed_version $remote_version "true" $update_ignored
 						fi
 					fi
 				done
