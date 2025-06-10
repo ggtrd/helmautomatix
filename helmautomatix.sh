@@ -347,11 +347,11 @@ list_charts_deployed() {
 						log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
 						log_info "look for the chart repository:   helm -n $namespace get metadata $installed_name"
 						log_info "ensure the repository is listed: helm repo list"
-						log_info "ensure the chart is available:   helm search $installed_name"
+						log_info "ensure the chart is available:   helm search $chart_name"
 						log_info "skipping $installed_name"
 						# break
 					elif [ "$(echo $configured_repo_name | wc -w)" -gt 1 ]; then
-						log_error "multiple helm repositories found for chart '$installed_name': $configured_repo_name"
+						log_error "multiple helm repositories found for chart '$installed_name': $(echo $configured_repo_name)"
 						log_info "skipping $installed_name"
 					else
 						# Set chart as ignored depending on the filters files
@@ -377,7 +377,7 @@ list_charts_deployed() {
 						echo "chart_name             $chart_name"
 						# echo "configured_repo_url    $configured_repo_url"
 						echo "configured_repo_name   $configured_repo_name"
-						echo "remote_chart_url       $remote_chart_url"
+						# echo "remote_chart_url       $remote_chart_url"
 						echo "remote_chart_reference $remote_chart_reference"
 						echo "remote_chart_version   $remote_chart_version"
 						echo "update_ignored         $update_ignored"
