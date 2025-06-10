@@ -26,7 +26,7 @@
 
 
 # Uncomment for debug
-# set -x
+set -x
 
 
 
@@ -66,8 +66,10 @@ file_deployments_rollback="deployments-rollbackable"
 dir_filters="filters"
 mkdir -p $dir_filters
 chmod -R 770 $dir_filters
-file_filter_repo="$dir_filters/ignored_helm_repositories" # Simple list, 1 line = 1 ignored repository
-touch $file_filter_repo
+file_filter_repos="$dir_filters/ignored_helm_repositories" # Simple list, 1 line = 1 ignored repository
+file_filter_charts="$dir_filters/ignored_helm_charts" # Simple list, 1 line = 1 ignored repository
+touch $file_filter_repos
+touch $file_filter_charts
 
 
 
@@ -157,7 +159,7 @@ get_current_context() {
 # # List Helm ignored repositories
 # # Usage: get_filtered_helm_repositories
 # get_filtered_helm_repositories() {
-# 	for line in $(cat $file_filter_repo); do
+# 	for line in $(cat $file_filter_repos); do
 # 		echo $line
 # 	done
 # }
@@ -298,7 +300,8 @@ list_charts_deployed() {
 		# Prepare an empty JSON array to receive the charts properties
 		jq -n --argjson charts "[]" '$ARGS.named' >$file_deployments_json
 
-		local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
+		# local namespaces="$(kubectl get namespaces -o json | jq -c '.items[].metadata.name' | tr -d \")"
+		local namespaces="$(kubectl get namespaces -o json | jq -cr '.items[].metadata.name')"
 		for namespace in $namespaces; do
 			log_info "jumping to namespace '$namespace'"
 
@@ -312,18 +315,24 @@ list_charts_deployed() {
 
 					log_info "found deployment '$deployment'"
 
-					local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
-					local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
-					local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
+					# local installed_name="$(echo "$deployment" | jq -c '.name' | sed 's|"\(.*\)"|\1|')"
+					local installed_name="$(echo "$deployment" | jq -cr '.name')"
+					# local installed_version="$(echo "$deployment" | jq -c '.app_version' | sed 's|"\(.*\)"|\1|')"
+					local installed_version="$(echo "$deployment" | jq -cr '.app_version')"
+					# local installed_status="$(helm --namespace $namespace status $installed_name | grep STATUS | sed 's|.*: ||')"
+					local installed_status="$(helm --namespace $namespace status $installed_name | yq -r '.info.status')"
 
-					local remote_chart="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
+					# local remote_chart="$(helm --namespace $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
+					local remote_chart="$(helm --namespace $namespace get manifest $installed_name | yq -r '.spec.template.spec.initContainers[]? | .image')"
 
 					# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
 					# The purpose is to match repo name and url because the name can be differents
-					local configured_repo_url="$(echo $remote_chart | cut -d '/' -f 2)"
+					# local configured_repo_url="$(helm search repo $installed_name -o json | jq -r '.[].name' | cut -d \/ -f 1)"
+					# local configured_repo_url="$(echo $remote_chart | cut -d '/' -f 2)"
 
-					# Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
-					local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
+					# # Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
+					# local configured_repo_name="$(helm --namespace $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
+					local configured_repo_name="$(helm search repo $installed_name -o json | jq -r '.[].name' | cut -d \/ -f 1)"
 
 					if [ -z "$(echo $configured_repo_name)" ]; then
 						log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
@@ -332,32 +341,37 @@ list_charts_deployed() {
 						break
 					fi
 
-					# Set chart as ignored if its repository is part of the filter file
-					if [ "$(cat $file_filter_repo | grep -w $configured_repo_name)" ]; then
-						local update_ignored='true'
-					else
-						local update_ignored='false'
-					fi
+					# # Set chart as ignored depending on the filters files
+					# if [ "$(cat $file_filter_repos | grep -w $configured_repo_name)" ] || [ "$(cat $file_filter_charts | grep -w $installed_name)" ]; then
+					# 	local update_ignored='true'
+					# else
+					# 	local update_ignored='false'
+					# fi
+					# if [ "$(grep -w $configured_repo_name -f $file_filter_repos)" ] || [ "$(grep -w $installed_name -f $file_filter_charts)" ]; then
+					# 	local update_ignored='true'
+					# else
+					# 	local update_ignored='false'
+					# fi
 
-					local remote_chart_reference="$(echo $configured_repo_name/$(echo $remote_chart | sed 's|.*/\(.*\):.*|\1|'))"
-					local remote_chart_version="$(helm --namespace $namespace show chart $remote_chart_reference | grep appVersion | sed 's|.*: ||')"
+					# local remote_chart_reference="$(echo $configured_repo_name/$(echo $remote_chart | sed 's|.*/\(.*\):.*|\1|'))"
+					# local remote_chart_version="$(helm --namespace $namespace show chart $remote_chart_reference | grep appVersion | sed 's|.*: ||')"
 
-					# # Debug comment/uncomment
-					# echo "installed_name         $installed_name"
-					# echo "installed_version      $installed_version"
-					# echo "installed_status       $installed_status"
-					# echo "remote_chart           $remote_chart"
+					# Debug comment/uncomment
+					echo "installed_name         $installed_name"
+					echo "installed_version      $installed_version"
+					echo "installed_status       $installed_status"
+					echo "remote_chart           $remote_chart"
 					# echo "configured_repo_url    $configured_repo_url"
-					# echo "configured_repo_name   $configured_repo_name"
-					# echo "remote_chart_reference $remote_chart_reference"
-					# echo "remote_chart_version   $remote_chart_version"
-					# echo "update_ignored         $update_ignored"
+					echo "configured_repo_name   $configured_repo_name"
+					echo "remote_chart_reference $remote_chart_reference"
+					echo "remote_chart_version   $remote_chart_version"
+					echo "update_ignored         $update_ignored"
 
-					if [ "$(echo "$installed_version")" != "$(echo "$remote_chart_version")" ]; then
-						json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "false" $update_ignored
-					else
-						json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "true" $update_ignored
-					fi
+					# if [ "$(echo "$installed_version")" != "$(echo "$remote_chart_version")" ]; then
+					# 	json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "false" $update_ignored
+					# else
+					# 	json_chart $namespace $installed_name $remote_chart_reference $remote_chart $installed_version $remote_chart_version "true" $update_ignored
+					# fi
 				done
 
 			fi
@@ -380,7 +394,8 @@ get_chart_reference() {
 	local deployment_name=$1
 	list_charts_deployed > /dev/null
 
-	cat $file_deployments_json | jq '.charts[] | select(.name=="'$deployment_name'") | .reference' | tr -d \"
+	# cat $file_deployments_json | jq '.charts[] | select(.name=="'$deployment_name'") | .reference' | tr -d \"
+	cat $file_deployments_json | jq -r '.charts[] | select(.name=="'$deployment_name'") | .reference'
 }
 
 
@@ -417,14 +432,17 @@ update_charts() {
 		if [ ! -z "$(echo $uptodate_charts)" ]; then
 			for chart in $uptodate_charts; do
 
-				local chart_name="$(echo $chart | jq '.name' | tr -d \")"
-				local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
+				# local chart_name="$(echo $chart | jq '.name' | tr -d \")"
+				local chart_name="$(echo $chart | jq -r '.name')"
+				# local chart_reference="$(echo $chart | jq '.reference' | tr -d \")"
+				local chart_reference="$(echo $chart | jq -r '.reference')"
 
 				log_info "updating '$chart_name'"
 
 				helm upgrade --reuse-values $chart_name $chart_reference > /dev/null
 
-				local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
+				# local chart_status="$(helm status $chart_name | grep STATUS: | cut -d ' ' -f 2)"
+				local chart_status="$(helm status $chart_name | yq -r '.info.status')"
 				if [ "$(echo $chart_status)" = "deployed" ]; then
 					log_info "update of '$chart_name' success (status: $chart_status)"
 				else
