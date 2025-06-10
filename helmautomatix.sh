@@ -323,14 +323,14 @@ list_charts_deployed() {
 					local installed_status="$(helm -n $namespace status $installed_name -o yaml | yq -r '.info.status')"
 
 					# local remote_chart_url="$(helm -n $namespace get manifest $installed_name | grep image: | head -n 1 | sed 's|.*: ||' | tr -d \")"
-					local remote_chart_url="$(helm -n $namespace get manifest $installed_name | yq -r '.spec.template.spec.initContainers[]? | .image')"
+					# local remote_chart_url="$(helm -n $namespace get manifest $installed_name | yq -r '.spec.template.spec.initContainers[]? | .image')"
 
 					# Since charts can have multiples deployments, base the $remote_chart_name on 'app.kubernetes.io/part-of' if exists, or on 'app.kubernetes.io/name' if not
 					local chart_name_partof="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=="Deployment").metadata.labels."app.kubernetes.io/part-of"')"
 					if [ "$(echo $chart_name_partof)" = "null" ]; then
 						local chart_name="$(helm -n $namespace get manifest $installed_name | yq -r '. | select(.kind=="Deployment").metadata.labels."app.kubernetes.io/name"')"
 					else
-						local chart_name="$(echo $chart_name_partof | head -n 1)"
+						local chart_name="$(echo $chart_name_partof | cut -d ' ' -f 1)"
 					fi
 
 					# Trick to get the repo name configured in "helm repo list" from the URL given in charts metadata
@@ -341,13 +341,18 @@ list_charts_deployed() {
 					# # Todo: this list is currently the local list of the computer, it must be a list created from metadata charts to ensure having all the repos
 					# local configured_repo_name="$(helm -n $namespace repo list -o json | jq -c '.[]' | grep $configured_repo_url | jq -c '.name' | tr -d \")"
 					# local configured_repo_name="$(helm search repo $chart_name -o json | jq -r '.[].name' | cut -d \/ -f 1)"
-					local configured_repo_name="$(helm search repo $chart_name -o yaml | yq -r '.[].name' | grep -w $chart_name | grep -v '-' | cut -d / -f 1)"
+					local configured_repo_name="$(helm search repo $chart_name -o yaml | yq -r '.[].name' | grep -x ".*/$chart_name" | cut -d / -f 1)"
 
 					if [ -z "$(echo $configured_repo_name)" ]; then
 						log_error "helm repository not found on the system for chart '$installed_name', please verify with the following commands:"
 						log_info "look for the chart repository:   helm -n $namespace get metadata $installed_name"
 						log_info "ensure the repository is listed: helm repo list"
+						log_info "ensure the chart is available:   helm search $installed_name"
+						log_info "skipping $installed_name"
 						# break
+					elif [ "$(echo $configured_repo_name | wc -w)" -gt 1 ]; then
+						log_error "multiple helm repositories found for chart '$installed_name': $configured_repo_name"
+						log_info "skipping $installed_name"
 					else
 						# Set chart as ignored depending on the filters files
 						if [ "$(cat $file_filter_repos | grep -w $configured_repo_name)" ] || [ "$(cat $file_filter_charts | grep -w $installed_name)" ]; then
@@ -372,14 +377,15 @@ list_charts_deployed() {
 						echo "chart_name             $chart_name"
 						# echo "configured_repo_url    $configured_repo_url"
 						echo "configured_repo_name   $configured_repo_name"
+						echo "remote_chart_url       $remote_chart_url"
 						echo "remote_chart_reference $remote_chart_reference"
 						echo "remote_chart_version   $remote_chart_version"
 						echo "update_ignored         $update_ignored"
 
 						if [ "$(echo "$installed_version")" != "$(echo "$remote_chart_version")" ]; then
-							json_chart $namespace $installed_name $remote_chart_reference $remote_chart_url $installed_version $remote_chart_version "false" $update_ignored
+							json_chart $namespace $installed_name $remote_chart_reference "remote_chart_url" $installed_version $remote_chart_version "false" $update_ignored
 						else
-							json_chart $namespace $installed_name $remote_chart_reference $remote_chart_url $installed_version $remote_chart_version "true" $update_ignored
+							json_chart $namespace $installed_name $remote_chart_reference "remote_chart_url" $installed_version $remote_chart_version "true" $update_ignored
 						fi
 					fi
 				done
