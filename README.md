@@ -69,5 +69,17 @@ Repositories written in this list must match with repositories listed from this 
 helm repo list
 ```
 
+#### Ignore Helm charts 
+Charts updates can be ignored by writing their names the file `filters/ignored_helm_charts`.
+>*If doesn't exist, you can manually create it or launch a first time `./helmautomatix` (it will create it).*
+
+This file is a simple list:
+```
+chart1
+chart2
+chart3
+etc...
+```
+
 # License
 This project is licensed under the [MIT License](https://github.com/ggtrd/helmautomatix/blob/main/LICENSE.md).
