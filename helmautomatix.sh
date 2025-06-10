@@ -512,7 +512,7 @@ display_help() {
 		&&	echo "Options:" \
 		&&	echo " -h, --help            display help message" \
 		&&	echo " -j, --logs            display logs" \
-		&&	echo " -n, -n       namespace scope for this request" \
+		&&	echo " -n, -namespace        scope for this request" \
 		&&	echo " -l, --list-updates    list available Helm Charts updates" \
 		&&	echo " -u, --do-updates      update Helm Charts (force with -y)"
 	fi
@@ -550,7 +550,7 @@ while true; do
 		# 	export HELMAUTOMATIX_ROLLBACK_CONFIRMATION="$2"
 		# 	rollback_charts
 		# 	;;
-		-n|-n) 	
+		-n|--namespace) 	
 			export HELMAUTOMATIX_NAMESPACE="$2"
 			;;
 		-h|--help) 
